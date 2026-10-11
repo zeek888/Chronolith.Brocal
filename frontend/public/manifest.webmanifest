@@ -1,0 +1,13 @@
+{
+  "name": "Brocal · servicios petroleros",
+  "short_name": "Brocal",
+  "description": "Boletas de servicio, órdenes de trabajo, flota, personal, HSE, facturación y cobranza.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f9fc",
+  "theme_color": "#0B365B",
+  "lang": "es-MX",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

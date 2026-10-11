@@ -1,0 +1,175 @@
+<div class="cl-page">
+  @if (!hasCompany()) {
+    <br-empty icon="domain_disabled" [title]="'home.noCompanyTitle' | t" [message]="'home.noCompanyMessage' | t">
+      @if (session.isPlatformAdmin()) {
+        <a mat-flat-button [routerLink]="link('plataforma/empresas')"><mat-icon>domain_add</mat-icon>{{ 'nav.tenants' | t }}</a>
+      }
+    </br-empty>
+  } @else {
+    <br-page-header [title]="greeting()" [subtitle]="session.tenant()!.name" icon="space_dashboard" />
+
+    @if (session.tenant()!.status === 'suspended') {
+      <div class="br-warning-box br-warning-box--error"><mat-icon>block</mat-icon>{{ 'home.suspended' | t }}</div>
+    } @else if (session.tenant()!.status === 'trial' && session.tenant()!.trialEndsOn) {
+      <div class="br-warning-box br-warning-box--info"><mat-icon>schedule</mat-icon>{{ 'home.trial' | t: { date: (session.tenant()!.trialEndsOn | d) } }}</div>
+    }
+
+    @if (outbox.count() > 0) {
+      <div class="br-warning-box">
+        <mat-icon>cloud_upload</mat-icon>
+        <span>{{ 'home.pendingSync' | t: { n: outbox.count() } }}</span>
+        <span class="cl-spacer"></span>
+        <a mat-button [routerLink]="link('boletas/pendientes')">{{ 'common.view' | t }}</a>
+      </div>
+    }
+
+    @if (actions().length > 0) {
+      <div class="br-actions br-quick">
+        @for (action of actions(); track action.key) {
+          <a mat-stroked-button [routerLink]="link(action.path)"><mat-icon>{{ action.icon }}</mat-icon>{{ 'home.actions.' + action.key | t }}</a>
+        }
+      </div>
+    }
+
+    @if (portal.value(); as p) {
+      <div class="br-kpis">
+        <br-kpi [label]="'portal.ticketsThisMonth' | t" [value]="p.ticketsThisMonth" icon="receipt_long" [detail]="'portal.lastMonth' | t: { n: p.ticketsLastMonth }" />
+        <br-kpi [label]="'portal.amountThisMonth' | t" [value]="p.amountThisMonth" format="money" icon="payments" />
+        <br-kpi [label]="'portal.scheduledOrders' | t" [value]="p.scheduledOrders" icon="event" />
+        <br-kpi [label]="'portal.balance' | t" [value]="p.balance" format="money" icon="account_balance_wallet" [tone]="p.overdueBalance > 0 ? 'warning' : 'neutral'" [detail]="p.overdueBalance > 0 ? ('portal.overdue' | t: { amount: (p.overdueBalance | money) }) : null" />
+      </div>
+      <section class="br-card">
+        <div class="br-card__header">
+          <h2>{{ 'portal.recentTickets' | t }}</h2>
+          <a mat-button [routerLink]="link('boletas')">{{ 'common.viewAll' | t }}</a>
+        </div>
+        <table class="br-table">
+          <tbody>
+            @for (t of p.recentTickets; track t.id) {
+              <tr>
+                <td class="br-nowrap"><a class="cl-row-link" [routerLink]="link('boletas', t.id)">{{ t.folio }}</a></td>
+                <td class="br-nowrap">{{ t.serviceDate | d }}</td>
+                <td class="br-wide">{{ t.siteName }}</td>
+                <td><br-status enum="ticketStatus" [value]="t.status" /></td>
+                <td class="br-end">{{ t.total | money }}</td>
+              </tr>
+            } @empty {
+              <tr><td class="br-table-empty">{{ 'common.noRecords' | t }}</td></tr>
+            }
+          </tbody>
+        </table>
+      </section>
+    }
+
+    @if (summary.value(); as s) {
+      <div class="br-kpis">
+        <br-kpi [label]="'home.signedTickets' | t" [value]="s.signedTickets" icon="task_alt" tone="success" />
+        <br-kpi [label]="'home.amountMonth' | t" [value]="s.amount" format="money" icon="payments" />
+        <br-kpi [label]="'home.pendingInvoice' | t" [value]="s.pendingAmount" format="money" icon="pending_actions" [tone]="s.pendingInvoice > 0 ? 'warning' : 'neutral'" [detail]="'home.ticketsCount' | t: { n: s.pendingInvoice }" />
+        <br-kpi [label]="'home.drafts' | t" [value]="s.drafts" icon="edit_note" />
+        <br-kpi [label]="'home.openOrders' | t" [value]="s.openWorkOrders" icon="event_note" tone="info" />
+      </div>
+    }
+
+    <div class="br-grid br-grid--2">
+      @if (myOrders.value(); as orders) {
+        <section class="br-card">
+          <div class="br-card__header">
+            <h2><mat-icon>today</mat-icon>{{ 'home.myOrdersToday' | t }}</h2>
+            <a mat-button [routerLink]="link('ordenes')">{{ 'common.viewAll' | t }}</a>
+          </div>
+          <ul class="br-timeline">
+            @for (o of orders.items; track o.id) {
+              <li>
+                <mat-icon>event_note</mat-icon>
+                <div>
+                  <a class="cl-row-link" [routerLink]="link('ordenes', o.id)">{{ o.folio }} · {{ o.siteName }}</a>
+                  <small>{{ o.description }}</small>
+                  <small>{{ o.scheduledStart | d }} · {{ o.serviceTypeName }}</small>
+                </div>
+              </li>
+            } @empty {
+              <li class="cl-muted br-timeline__empty">{{ 'home.noOrdersToday' | t }}</li>
+            }
+          </ul>
+        </section>
+      }
+
+      @if (myTickets.value(); as tickets) {
+        <section class="br-card">
+          <div class="br-card__header">
+            <h2><mat-icon>receipt_long</mat-icon>{{ 'home.myTickets' | t }}</h2>
+            <a mat-button [routerLink]="link('boletas')">{{ 'common.viewAll' | t }}</a>
+          </div>
+          <table class="br-table">
+            <tbody>
+              @for (t of tickets.items; track t.id) {
+                <tr>
+                  <td class="br-nowrap"><a class="cl-row-link" [routerLink]="link('boletas', t.id)">{{ t.folio }}</a></td>
+                  <td class="br-nowrap">{{ t.serviceDate | d }}</td>
+                  <td><br-status enum="ticketStatus" [value]="t.status" /></td>
+                </tr>
+              } @empty {
+                <tr><td class="br-table-empty">{{ 'common.noRecords' | t }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </section>
+      }
+
+      @if (expiring.value(); as docs) {
+        <section class="br-card">
+          <div class="br-card__header">
+            <h2><mat-icon>event_busy</mat-icon>{{ 'home.expiring' | t }}</h2>
+          </div>
+          <table class="br-table">
+            <tbody>
+              @for (doc of docs; track doc.id) {
+                <tr>
+                  <td>
+                    <strong>{{ doc.subjectCode }}</strong> {{ doc.subjectName }}
+                    <div class="br-sub">{{ doc.documentTypeName }}</div>
+                  </td>
+                  <td>{{ doc.expiresOn | d }}</td>
+                  <td><br-status enum="complianceStatus" [value]="doc.status" /></td>
+                </tr>
+              } @empty {
+                <tr><td class="br-table-empty">{{ 'home.noExpiring' | t }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </section>
+      }
+
+      @if (maintenance.value(); as due) {
+        <section class="br-card">
+          <div class="br-card__header">
+            <h2><mat-icon>build</mat-icon>{{ 'home.maintenanceDue' | t }}</h2>
+            <a mat-button [routerLink]="link('mantenimiento/vencimientos')">{{ 'common.viewAll' | t }}</a>
+          </div>
+          <table class="br-table">
+            <tbody>
+              @for (item of due.slice(0, 8); track item.planId + item.unitId) {
+                <tr>
+                  <td>
+                    <a class="cl-row-link" [routerLink]="link('flota/unidades', item.unitId)">{{ item.unitCode }}</a>
+                    <div class="br-sub">{{ item.planName }}</div>
+                  </td>
+                  <td>
+                    @if (item.isOverdue) {
+                      <span class="cl-chip cl-chip--error">{{ 'maintenance.overdue' | t }}</span>
+                    } @else {
+                      <span class="cl-chip cl-chip--warning">{{ 'maintenance.due' | t }}</span>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td class="br-table-empty">{{ 'home.noMaintenanceDue' | t }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </section>
+      }
+    </div>
+  }
+</div>

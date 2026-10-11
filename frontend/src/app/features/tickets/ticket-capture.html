@@ -1,0 +1,282 @@
+<div class="cl-page br-capture">
+  <br-page-header [title]="folio() ? ('tickets.editTitle' | t: { folio: folio() }) : ('tickets.newTitle' | t)" icon="receipt_long" [subtitle]="'tickets.captureHint' | t">
+    <a mat-button [routerLink]="nav.to('boletas')"><mat-icon>arrow_back</mat-icon>{{ 'common.back' | t }}</a>
+  </br-page-header>
+
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  <form [formGroup]="form" class="br-capture__form" (submit)="$event.preventDefault()">
+    <!-- 1. Where and what -->
+    <section class="br-card">
+      <h2><mat-icon>place</mat-icon>{{ 'tickets.sections.service' | t }}</h2>
+      <div class="cl-form-grid">
+        <br-lookup formControlName="customerId" catalog="catalogs/customers" [label]="'fields.customer' | t" [required]="true" />
+        <br-lookup formControlName="contractId" catalog="catalogs/contracts" [label]="'fields.contract' | t" [filter]="siteFilter()" />
+        <br-lookup formControlName="siteId" catalog="catalogs/sites" [label]="'fields.site' | t" [required]="true" [filter]="siteFilter()" />
+        <br-lookup formControlName="serviceTypeId" catalog="pricing/service-types" [label]="'fields.serviceType' | t" [required]="true" [showExtra]="false" />
+        <mat-form-field>
+          <mat-label>{{ 'fields.serviceDate' | t }}</mat-label>
+          <input matInput [matDatepicker]="date" formControlName="serviceDate" />
+          <mat-datepicker-toggle matIconSuffix [for]="date" />
+          <mat-datepicker #date />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>{{ 'fields.startedAt' | t }}</mat-label>
+          <input matInput type="datetime-local" formControlName="startedAt" />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>{{ 'fields.finishedAt' | t }}</mat-label>
+          <input matInput type="datetime-local" formControlName="finishedAt" />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>{{ 'fields.customerRepresentative' | t }}</mat-label>
+          <input matInput formControlName="customerRepresentative" />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <!-- 2. Who and with what -->
+    <section class="br-card">
+      <h2><mat-icon>groups</mat-icon>{{ 'tickets.sections.resources' | t }}</h2>
+      <div class="cl-form-grid">
+        <br-lookup formControlName="unitIds" catalog="fleet/units" [label]="'fields.units' | t" [multiple]="true" (selected)="unitsSelected($event)" />
+        <br-lookup formControlName="crewId" catalog="crews" [label]="'fields.crew' | t" />
+        <br-lookup class="cl-full-row" formControlName="employeeIds" catalog="personnel/employees" [label]="'fields.personnel' | t" [multiple]="true" />
+      </div>
+      @if (meters.length > 0) {
+        <h3 class="br-form-section">{{ 'tickets.meters' | t }}</h3>
+        <div class="br-meters">
+          @for (meter of meters.controls; track meter.controls.unitId.value; let i = $index) {
+            <div class="br-meter" [formGroup]="meter">
+              <span class="br-meter__unit"><mat-icon>local_shipping</mat-icon>{{ meterUnit(i) }}</span>
+              <mat-form-field subscriptSizing="dynamic">
+                <mat-label>{{ 'fields.odometer' | t }}</mat-label>
+                <input matInput type="number" formControlName="odometer" />
+                <span matTextSuffix>km</span>
+              </mat-form-field>
+              <mat-form-field subscriptSizing="dynamic">
+                <mat-label>{{ 'fields.hourMeter' | t }}</mat-label>
+                <input matInput type="number" formControlName="hours" />
+                <span matTextSuffix>h</span>
+              </mat-form-field>
+            </div>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- 3. Form of the service type -->
+    @if (serviceType(); as type) {
+      <section class="br-card" [formGroup]="answers">
+        <h2><mat-icon>{{ type.icon || 'dynamic_form' }}</mat-icon>{{ type.name }}</h2>
+        @if (type.description) {
+          <p class="cl-muted">{{ type.description }}</p>
+        }
+        <div class="cl-form-grid">
+          @for (field of answerFields(); track field.key) {
+            @switch (field.type) {
+              @case ('checkbox') {
+                <mat-checkbox [formControl]="$any(answer(field.key))">{{ field.label }}</mat-checkbox>
+              }
+              @case ('select') {
+                <mat-form-field>
+                  <mat-label>{{ field.label }}</mat-label>
+                  <mat-select [formControl]="answer(field.key)">
+                    @if (!field.required) {
+                      <mat-option [value]="null">—</mat-option>
+                    }
+                    @for (option of field.options ?? []; track option) {
+                      <mat-option [value]="option">{{ option }}</mat-option>
+                    }
+                  </mat-select>
+                  <mat-error>{{ 'validation.required' | t }}</mat-error>
+                </mat-form-field>
+              }
+              @case ('textArea') {
+                <mat-form-field class="cl-full-row">
+                  <mat-label>{{ field.label }}</mat-label>
+                  <textarea matInput rows="3" [formControl]="$any(answer(field.key))"></textarea>
+                  <mat-error>{{ 'validation.required' | t }}</mat-error>
+                </mat-form-field>
+              }
+              @case ('number') {
+                <mat-form-field>
+                  <mat-label>{{ field.label }}</mat-label>
+                  <input matInput type="number" inputmode="decimal" [formControl]="$any(answer(field.key))" />
+                  @if (field.unit) {
+                    <span matTextSuffix>{{ field.unit }}</span>
+                  }
+                  <mat-error>{{ 'validation.required' | t }}</mat-error>
+                </mat-form-field>
+              }
+              @case ('date') {
+                <mat-form-field>
+                  <mat-label>{{ field.label }}</mat-label>
+                  <input matInput type="date" [formControl]="$any(answer(field.key))" />
+                  <mat-error>{{ 'validation.required' | t }}</mat-error>
+                </mat-form-field>
+              }
+              @case ('time') {
+                <mat-form-field>
+                  <mat-label>{{ field.label }}</mat-label>
+                  <input matInput type="time" [formControl]="$any(answer(field.key))" />
+                  <mat-error>{{ 'validation.required' | t }}</mat-error>
+                </mat-form-field>
+              }
+              @default {
+                <mat-form-field>
+                  <mat-label>{{ field.label }}</mat-label>
+                  <input matInput [formControl]="$any(answer(field.key))" />
+                  @if (field.unit) {
+                    <span matTextSuffix>{{ field.unit }}</span>
+                  }
+                  <mat-error>{{ 'validation.required' | t }}</mat-error>
+                </mat-form-field>
+              }
+            }
+          }
+        </div>
+      </section>
+    }
+
+    <!-- 4. Concepts with the agreed prices -->
+    <section class="br-card">
+      <div class="br-card__header">
+        <h2><mat-icon>request_quote</mat-icon>{{ 'tickets.sections.lines' | t }}</h2>
+        <button mat-stroked-button type="button" (click)="addLine()"><mat-icon>add</mat-icon>{{ 'fields.addService' | t }}</button>
+      </div>
+      <div class="br-lines">
+        @for (line of lines.controls; track line; let i = $index) {
+          <div class="br-line" [formGroup]="line">
+            <br-lookup class="br-line__service" formControlName="serviceId" catalog="pricing/services" [label]="'fields.service' | t" [required]="true" />
+            <mat-form-field class="br-line__qty">
+              <mat-label>{{ 'fields.quantity' | t }}</mat-label>
+              <input matInput type="number" inputmode="decimal" formControlName="quantity" />
+              @if (priceOf(i)?.unitName; as unit) {
+                <span matTextSuffix>{{ unit }}</span>
+              }
+            </mat-form-field>
+            @if (canOverride()) {
+              <mat-form-field class="br-line__price">
+                <mat-label>{{ 'fields.unitPrice' | t }}</mat-label>
+                <input matInput type="number" formControlName="unitPrice" [placeholder]="(priceOf(i)?.unitPrice ?? '') + ''" />
+                <mat-hint>{{ 'tickets.overrideHint' | t }}</mat-hint>
+              </mat-form-field>
+            } @else {
+              <div class="br-line__price br-line__readonly">
+                <small>{{ 'fields.unitPrice' | t }}</small>
+                <span>{{ priceOf(i)?.unitPrice ?? null | money }}</span>
+                @if (priceOf(i); as price) {
+                  <small class="cl-muted">{{ 'enums.priceSource.' + price.source | t }}{{ price.priceListName ? ' · ' + price.priceListName : '' }}</small>
+                }
+              </div>
+            }
+            <div class="br-line__amount br-line__readonly">
+              <small>{{ 'fields.amount' | t }}</small>
+              <strong>{{ amountOf(i) }}</strong>
+            </div>
+            <button mat-icon-button type="button" (click)="removeLine(i)" [matTooltip]="'common.remove' | t"><mat-icon>delete</mat-icon></button>
+          </div>
+        } @empty {
+          <p class="cl-muted">{{ 'tickets.noLines' | t }}</p>
+        }
+      </div>
+      <div class="br-totals">
+        <span>{{ 'fields.subtotal' | t }}</span><strong>{{ totals().subtotal | money }}</strong>
+        <span>{{ 'fields.vat' | t }}</span><strong>{{ totals().vat | money }}</strong>
+        <span class="br-totals__grand">{{ 'fields.total' | t }}</span><strong class="br-totals__grand">{{ totals().total | money }}</strong>
+      </div>
+      <p class="cl-muted br-small">{{ 'tickets.pricesHint' | t }}</p>
+    </section>
+
+    <!-- 5. Work performed -->
+    <section class="br-card">
+      <h2><mat-icon>notes</mat-icon>{{ 'tickets.sections.notes' | t }}</h2>
+      <div class="cl-form-grid">
+        <mat-form-field class="cl-full-row">
+          <mat-label>{{ 'fields.workPerformed' | t }}</mat-label>
+          <textarea matInput rows="3" formControlName="description"></textarea>
+        </mat-form-field>
+        <mat-form-field class="cl-full-row">
+          <mat-label>{{ 'fields.observations' | t }}</mat-label>
+          <textarea matInput rows="2" formControlName="observations"></textarea>
+        </mat-form-field>
+      </div>
+    </section>
+
+    <!-- 6. Photo evidence -->
+    <section class="br-card">
+      <div class="br-card__header">
+        <h2><mat-icon>photo_camera</mat-icon>{{ 'tickets.sections.photos' | t }}</h2>
+        <span class="cl-muted">{{ 'tickets.photoCount' | t: { n: photoCount(), min: minPhotos() } }}</span>
+      </div>
+      <div class="br-actions">
+        <br-photo-picker (photos)="photosPicked($event)" />
+        <br-photo-picker [camera]="false" (photos)="photosPicked($event)" />
+      </div>
+      <div class="br-photos br-capture__photos">
+        @for (photo of existingPhotos(); track photo.id) {
+          <figure class="br-photo">
+            <img [src]="url(photo.url)" [alt]="photo.caption ?? ''" loading="lazy" />
+            <button mat-icon-button type="button" (click)="removeExistingPhoto(photo)" [attr.aria-label]="'common.remove' | t"><mat-icon>close</mat-icon></button>
+            @if (photo.caption) {
+              <figcaption>{{ photo.caption }}</figcaption>
+            }
+          </figure>
+        }
+        @for (photo of newPhotos(); track photo.previewUrl; let i = $index) {
+          <div class="br-new-photo">
+            <figure class="br-photo">
+              <img [src]="photo.previewUrl" alt="" />
+              <button mat-icon-button type="button" (click)="removeNewPhoto(i)" [attr.aria-label]="'common.remove' | t"><mat-icon>close</mat-icon></button>
+            </figure>
+            <input class="br-caption" [placeholder]="'tickets.caption' | t" [value]="photo.caption" (change)="setCaption(i, $any($event.target).value)" />
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- 7. Customer's signature -->
+    @if (canSign()) {
+      <section class="br-card" [formGroup]="signer">
+        <div class="br-card__header">
+          <h2><mat-icon>draw</mat-icon>{{ 'tickets.sections.signature' | t }}</h2>
+          <mat-slide-toggle [checked]="signNow()" (change)="toggleSign($event.checked)">{{ 'tickets.signNow' | t }}</mat-slide-toggle>
+        </div>
+        @if (signNow()) {
+          <div class="cl-form-grid">
+            <mat-form-field>
+              <mat-label>{{ 'fields.signerName' | t }}</mat-label>
+              <input matInput formControlName="name" />
+              <mat-error>{{ 'validation.required' | t }}</mat-error>
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>{{ 'fields.signerPosition' | t }}</mat-label>
+              <input matInput formControlName="position" />
+            </mat-form-field>
+          </div>
+          <br-signature-pad />
+          <p class="cl-muted br-small">{{ 'tickets.signatureLegal' | t }}</p>
+        } @else {
+          <p class="cl-muted">{{ 'tickets.signLater' | t }}</p>
+        }
+      </section>
+    }
+
+    <div class="br-capture__bar">
+      @if (saving()) {
+        <mat-progress-bar mode="indeterminate" />
+      }
+      <div class="br-actions">
+        <span class="cl-muted br-capture__total">{{ 'fields.total' | t }}: <strong>{{ totals().total | money }}</strong></span>
+        <span class="cl-spacer"></span>
+        <button mat-stroked-button type="button" (click)="save(false)" [disabled]="saving()"><mat-icon>save</mat-icon>{{ 'tickets.saveDraft' | t }}</button>
+        @if (signNow()) {
+          <button mat-flat-button type="button" (click)="save(true)" [disabled]="saving()"><mat-icon>task_alt</mat-icon>{{ 'tickets.saveAndSign' | t }}</button>
+        }
+      </div>
+    </div>
+  </form>
+</div>

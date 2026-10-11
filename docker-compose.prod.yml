@@ -1,0 +1,35 @@
+# Producción del modo módulo: se combina con docker-compose.yml. El tráfico entra por chronolith-gateway
+# (ChronoLith/deploy), sin puertos propios en el host. Requiere Docker Compose 2.24.4+ (!reset) y un .env
+# (ver .env.production.example):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  brocal-db:
+    # Solo accesible desde la red interna (brocal-api).
+    ports: !reset []
+
+  brocal-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Database__SeedDemoTenant: ${BROCAL_SEED_DEMO:-false}
+      Tenancy__RequireVerifiedEmail: "true"
+      Keycloak__RequireHttpsMetadata: "true"
+      # Obligatorios: sin ellos Compose se detiene en lugar de usar los valores de desarrollo.
+      ConnectionStrings__BrocalDb: Host=brocal-db;Port=5432;Database=chronolith_brocal;Username=${BROCAL_DB_USER:?falta en .env};Password=${BROCAL_DB_PASSWORD:?falta en .env};GSS Encryption Mode=Disable
+      Keycloak__AuthServerUrl: ${KEYCLOAK_PUBLIC_URL:?falta en .env, p. ej. https://chronolith.com.mx/auth}
+      Keycloak__ClientSecret: ${KC_BROCAL_API_CLIENT_SECRET:?falta en .env}
+      ModuleRegistration__RemoteEntryUrl: ${BROCAL_PUBLIC_URL:?falta en .env, p. ej. https://chronolith.com.mx/modules/brocal}/remoteEntry.json
+      ModuleRegistration__ApiUrl: ${BROCAL_PUBLIC_URL:?falta en .env}/api
+      Files__SigningKey: ${BROCAL_FILES_SIGNING_KEY:?falta en .env (32 o más caracteres aleatorios)}
+      Cors__AllowedOrigins__0: ${CHRONOLITH_SHELL_URL:?falta en .env, p. ej. https://chronolith.com.mx}
+      Cors__AllowedOrigins__1: ${BROCAL_PUBLIC_URL:?falta en .env}
+
+  brocal-web:
+    environment:
+      KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL:?falta en .env}
+      CHRONOLITH_URL: ${CHRONOLITH_SHELL_URL:?falta en .env}
+    ports: !reset []
+    networks:
+      internal: {}
+      chronolith:
+        # Nombre con el que lo encuentra chronolith-gateway (location /modules/brocal/, ver docs/integracion-chronolith.md).
+        aliases: [chronolith-brocal-web]

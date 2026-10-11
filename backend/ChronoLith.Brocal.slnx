@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ChronoLith.Brocal.Api/ChronoLith.Brocal.Api.csproj" />
+    <Project Path="src/ChronoLith.Brocal.Application/ChronoLith.Brocal.Application.csproj" />
+    <Project Path="src/ChronoLith.Brocal.Domain/ChronoLith.Brocal.Domain.csproj" />
+    <Project Path="src/ChronoLith.Brocal.Infrastructure/ChronoLith.Brocal.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ChronoLith.Brocal.ArchitectureTests/ChronoLith.Brocal.ArchitectureTests.csproj" />
+    <Project Path="tests/ChronoLith.Brocal.Domain.UnitTests/ChronoLith.Brocal.Domain.UnitTests.csproj" />
+    <Project Path="tests/ChronoLith.Brocal.IntegrationTests/ChronoLith.Brocal.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

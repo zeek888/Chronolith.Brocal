@@ -1,0 +1,182 @@
+{
+  "realm": "brocal",
+  "displayName": "Brocal",
+  "displayNameHtml": "<span class=\"cl-realm-name\">Brocal</span>",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 3600,
+  "ssoSessionMaxLifespan": 43200,
+  "offlineSessionIdleTimeout": 2592000,
+  "passwordPolicy": "length(8) and upperCase(1) and lowerCase(1) and digits(1) and notUsername",
+  "loginTheme": "chronolith",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["es", "en"],
+  "defaultLocale": "es",
+  "roles": {
+    "realm": [
+      {
+        "name": "brocal-platform-admin",
+        "description": "Administrador de la plataforma Brocal: alta de empresas, cuotas, módulos y marca."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "brocal-web",
+      "name": "Brocal (SPA)",
+      "description": "Aplicación Angular de Brocal en modo independiente. OAuth 2.0 Authorization Code + PKCE (cliente público).",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": ["http://localhost:4303/*", "http://localhost:4200/*", "${BROCAL_PUBLIC_URL:http://localhost:4303}/*"],
+      "webOrigins": ["http://localhost:4303", "http://localhost:4200", "${BROCAL_PUBLIC_URL:http://localhost:4303}"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:4303/*##http://localhost:4200/*##${BROCAL_PUBLIC_URL:http://localhost:4303}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "brocal-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "brocal-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "brocal-dev-cli",
+      "name": "Brocal (pruebas de desarrollo)",
+      "description": "Solo desarrollo: permite obtener tokens con usuario y contraseña para probar la API. Elimínalo en producción.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "brocal-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "brocal-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "brocal-api",
+      "name": "Brocal API",
+      "description": "Service account de la API: crea cuentas al invitar usuarios (manage-users).",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KC_BROCAL_API_CLIENT_SECRET:brocal-api-dev-secret}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@brocal.local",
+      "firstName": "Administrador",
+      "lastName": "Brocal",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${BROCAL_ADMIN_PASSWORD:Brocal2026!}", "temporary": false }],
+      "realmRoles": ["default-roles-brocal", "brocal-platform-admin"]
+    },
+    {
+      "username": "oficina",
+      "email": "oficina@sps-demo.mx",
+      "firstName": "Patricia",
+      "lastName": "Oficina Demo",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${BROCAL_DEMO_PASSWORD:Demo2026!}", "temporary": false }],
+      "realmRoles": ["default-roles-brocal"]
+    },
+    {
+      "username": "supervisor",
+      "email": "supervisor@sps-demo.mx",
+      "firstName": "Luis Fernando",
+      "lastName": "Pérez Cruz",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${BROCAL_DEMO_PASSWORD:Demo2026!}", "temporary": false }],
+      "realmRoles": ["default-roles-brocal"]
+    },
+    {
+      "username": "operador",
+      "email": "operador@sps-demo.mx",
+      "firstName": "Juan Carlos",
+      "lastName": "Hernández López",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${BROCAL_DEMO_PASSWORD:Demo2026!}", "temporary": false }],
+      "realmRoles": ["default-roles-brocal"]
+    },
+    {
+      "username": "direccion",
+      "email": "direccion@sps-demo.mx",
+      "firstName": "Ricardo",
+      "lastName": "Director Demo",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${BROCAL_DEMO_PASSWORD:Demo2026!}", "temporary": false }],
+      "realmRoles": ["default-roles-brocal"]
+    },
+    {
+      "username": "cliente",
+      "email": "residente@pemex-demo.mx",
+      "firstName": "Rocío",
+      "lastName": "Pérez Pemex",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "${BROCAL_DEMO_PASSWORD:Demo2026!}", "temporary": false }],
+      "realmRoles": ["default-roles-brocal"]
+    },
+    {
+      "username": "service-account-brocal-api",
+      "enabled": true,
+      "serviceAccountClientId": "brocal-api",
+      "realmRoles": ["default-roles-brocal"],
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users", "query-users"]
+      }
+    }
+  ]
+}

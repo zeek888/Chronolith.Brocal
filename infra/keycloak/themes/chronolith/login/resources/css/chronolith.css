@@ -1,0 +1,107 @@
+/*
+ * ChronoLith login theme — corporate colors taken from the logo:
+ * navy #0B365B · blue #2874A6 · orange #E58E38 · cyan #2C9EC8
+ */
+:root {
+  --cl-navy: #0b365b;
+  --cl-navy-dark: #072641;
+  --cl-blue: #2874a6;
+  --cl-orange: #e58e38;
+
+  --pf-v5-global--primary-color--100: var(--cl-navy);
+  --pf-v5-global--primary-color--200: var(--cl-navy-dark);
+  --pf-v5-global--primary-color--light-100: var(--cl-blue);
+  --pf-v5-global--link--Color: var(--cl-blue);
+  --pf-v5-global--link--Color--hover: var(--cl-navy);
+  --pf-v5-global--active-color--100: var(--cl-blue);
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--cl-navy);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--cl-navy-dark);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--cl-navy-dark);
+  --pf-v5-c-button--m-primary--active--BackgroundColor: var(--cl-navy-dark);
+}
+
+#keycloak-bg,
+.login-pf body {
+  background:
+    radial-gradient(circle at 88% 8%, rgba(229, 142, 56, 0.2), transparent 38%),
+    radial-gradient(circle at 8% 92%, rgba(40, 116, 166, 0.22), transparent 45%),
+    linear-gradient(160deg, #f5f8fc 0%, #e6edf5 100%) !important;
+  background-attachment: fixed !important;
+}
+
+/* Logo instead of the realm name */
+#kc-header-wrapper {
+  width: 100%;
+  height: 170px;
+  margin: 0 auto;
+  background: url("../img/logo-full.png") center / contain no-repeat;
+}
+
+#kc-header-wrapper .cl-realm-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Login card with the brand stripe of the logo underline */
+.pf-v5-c-login__main {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(11, 54, 91, 0.16);
+}
+
+.pf-v5-c-login__main::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--cl-navy), var(--cl-blue) 60%, var(--cl-orange));
+}
+
+#kc-page-title {
+  font-weight: 700;
+  color: var(--cl-navy);
+}
+
+.pf-v5-c-button.pf-m-primary {
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.pf-v5-c-login__container::after {
+  content: "ChronoLith · well life-cycle by GUMEC";
+  display: block;
+  margin-top: 16px;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #5e6872;
+}
+
+/* Dark mode (keycloak.v2 adds .pf-v5-theme-dark when the OS prefers it) */
+.pf-v5-theme-dark #keycloak-bg,
+.pf-v5-theme-dark body {
+  background:
+    radial-gradient(circle at 88% 8%, rgba(229, 142, 56, 0.16), transparent 38%),
+    radial-gradient(circle at 8% 92%, rgba(40, 116, 166, 0.2), transparent 45%),
+    linear-gradient(160deg, #0d1620 0%, #101b27 100%) !important;
+}
+
+.pf-v5-theme-dark #kc-header-wrapper {
+  background-image: url("../img/logo-full-dark.png");
+}
+
+.pf-v5-theme-dark {
+  --pf-v5-global--primary-color--100: #4f9fd6;
+  --pf-v5-global--link--Color: #7fc0ee;
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--cl-blue);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: #1f5f8a;
+}
+
+.pf-v5-theme-dark #kc-page-title {
+  color: #e6edf5;
+}

@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/TestResults/
+**/*.user
+.vs/
+.vscode/
+tests/
+# Archivos y llaves del entorno de desarrollo (en el contenedor viven en el volumen /data).
+src/ChronoLith.Brocal.Api/data/

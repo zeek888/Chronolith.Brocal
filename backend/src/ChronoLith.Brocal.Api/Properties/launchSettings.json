@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "launchUrl": "scalar",
+      "applicationUrl": "http://localhost:5303",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "standalone": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "launchUrl": "scalar",
+      "applicationUrl": "http://localhost:5303",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Tenancy__Mode": "Standalone",
+        "Keycloak__AuthServerUrl": "http://localhost:8181",
+        "Keycloak__Realm": "brocal",
+        "Keycloak__Audiences__0": "brocal-api",
+        "Keycloak__ClientId": "brocal-api",
+        "Keycloak__ClientSecret": "brocal-api-dev-secret",
+        "Identity__ProvisionUsers": "true",
+        "Database__DemoAdminEmail": "admin@brocal.local",
+        "Shell__ApiUrl": ""
+      }
+    }
+  }
+}

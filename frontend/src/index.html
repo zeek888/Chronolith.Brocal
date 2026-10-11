@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Brocal</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Brocal · documentación operativa de servicios petroleros (boletas, órdenes de trabajo, flota, personal, HSE, facturación y cobranza)">
+  <meta name="theme-color" content="#0B365B">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+    .br-splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 20px;
+      background: #f7f9fc; font-family: 'Segoe UI', Roboto, sans-serif; color: #0b365b; }
+    .br-splash__logo { width: 64px; height: 64px; }
+    .br-splash__name { font-size: 28px; font-weight: 700; letter-spacing: .02em; }
+    .br-splash__bar { width: 220px; height: 4px; border-radius: 2px; overflow: hidden;
+      background: linear-gradient(90deg, #0b365b, #0f766e, #e58e38) 0 0 / 200% 100%; animation: br-splash 1.4s linear infinite; }
+    .br-splash__status { margin: 0; font-size: 14px; color: #47525c; text-align: center; max-width: 320px; }
+    @keyframes br-splash { to { background-position: -200% 0; } }
+    @media (prefers-color-scheme: dark) {
+      .br-splash { background: #101417; color: #d7e3ff; }
+      .br-splash__status { color: #c0c7cf; }
+    }
+  </style>
+</head>
+<body>
+  <br-app>
+    <div class="br-splash" role="status" aria-live="polite">
+      <img class="br-splash__logo" src="favicon.svg" alt="">
+      <div class="br-splash__name">Brocal</div>
+      <div class="br-splash__bar"></div>
+      <p class="br-splash__status">Iniciando…</p>
+    </div>
+  </br-app>
+</body>
+</html>

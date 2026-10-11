@@ -1,0 +1,174 @@
+@if (session.error(); as error) {
+  <br-empty icon="cloud_off" [title]="'layout.errorTitle' | t" [message]="error">
+    <button mat-flat-button type="button" (click)="session.ensureLoaded()">{{ 'common.retry' | t }}</button>
+  </br-empty>
+} @else if (!session.loaded()) {
+  <mat-progress-bar mode="indeterminate" />
+} @else if (standalone) {
+  <mat-sidenav-container class="br-shell">
+    <mat-sidenav class="br-sidenav" [mode]="handset() ? 'over' : 'side'" [opened]="sidenavOpen()" (openedChange)="sidenavOpen.set($event)">
+      <a class="br-sidenav__brand" [routerLink]="link('inicio')" (click)="closeOnHandset()">
+        @if (logo(); as logo) {
+          <img [src]="logo" alt="" />
+        } @else {
+          <span class="br-sidenav__mark"><mat-icon>receipt_long</mat-icon></span>
+        }
+        <span class="br-sidenav__title">
+          <strong>{{ session.appName() }}</strong>
+          @if (session.tenant()?.branding?.tagline; as tagline) {
+            <small>{{ tagline }}</small>
+          }
+        </span>
+      </a>
+      <nav class="br-sidenav__nav">
+        @for (group of menu(); track group.key) {
+          <div class="br-nav-group">
+            <span class="br-nav-group__title">{{ 'nav.groups.' + group.key | t }}</span>
+            @for (item of group.items; track item.path) {
+              <a class="br-nav-item" [routerLink]="link(item.path)" routerLinkActive="br-nav-item--active" (click)="closeOnHandset()">
+                <mat-icon>{{ item.icon }}</mat-icon>
+                <span>{{ 'nav.' + item.key | t }}</span>
+              </a>
+            }
+          </div>
+        }
+      </nav>
+      <div class="br-sidenav__footer cl-muted">Brocal {{ session.version() }}</div>
+    </mat-sidenav>
+
+    <mat-sidenav-content class="br-shell__content">
+      <mat-toolbar class="br-toolbar">
+        <button mat-icon-button type="button" (click)="sidenavOpen.set(!sidenavOpen())" [attr.aria-label]="'layout.menu' | t"><mat-icon>menu</mat-icon></button>
+        <ng-container [ngTemplateOutlet]="tenantSwitcher" />
+        <span class="cl-spacer"></span>
+        <ng-container [ngTemplateOutlet]="tools" />
+      </mat-toolbar>
+      <main class="br-main">
+        <router-outlet />
+      </main>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+} @else {
+  <div class="br-band">
+    <ng-container [ngTemplateOutlet]="tenantSwitcher" />
+    <nav class="br-band__menu">
+      @if (handset()) {
+        <button mat-button type="button" [matMenuTriggerFor]="allMenu"><mat-icon>apps</mat-icon>{{ 'layout.menu' | t }}</button>
+        <mat-menu #allMenu="matMenu">
+          @for (group of menu(); track group.key) {
+            <button mat-menu-item type="button" [matMenuTriggerFor]="groupMenu"><mat-icon>{{ group.icon }}</mat-icon>{{ 'nav.groups.' + group.key | t }}</button>
+            <mat-menu #groupMenu="matMenu">
+              @for (item of group.items; track item.path) {
+                <a mat-menu-item [routerLink]="link(item.path)"><mat-icon>{{ item.icon }}</mat-icon>{{ 'nav.' + item.key | t }}</a>
+              }
+            </mat-menu>
+          }
+        </mat-menu>
+      } @else {
+        @for (group of menu(); track group.key) {
+          @if (group.items.length === 1) {
+            <a mat-button class="br-band__group" [routerLink]="link(group.items[0].path)" routerLinkActive="br-band__group--active">
+              <mat-icon>{{ group.items[0].icon }}</mat-icon>{{ 'nav.' + group.items[0].key | t }}
+            </a>
+          } @else {
+            <button mat-button type="button" class="br-band__group" [class.br-band__group--active]="activeGroup() === group.key" [matMenuTriggerFor]="groupMenu">
+              <mat-icon>{{ group.icon }}</mat-icon>{{ 'nav.groups.' + group.key | t }}<mat-icon iconPositionEnd>expand_more</mat-icon>
+            </button>
+            <mat-menu #groupMenu="matMenu" class="br-group-menu">
+              @for (item of group.items; track item.path) {
+                <a mat-menu-item [routerLink]="link(item.path)" routerLinkActive="br-menu-item--active"><mat-icon>{{ item.icon }}</mat-icon>{{ 'nav.' + item.key | t }}</a>
+              }
+            </mat-menu>
+          }
+        }
+      }
+    </nav>
+    <span class="cl-spacer"></span>
+    <ng-container [ngTemplateOutlet]="tools" />
+  </div>
+  <main class="br-main">
+    <router-outlet />
+  </main>
+}
+
+<ng-template #tenantSwitcher>
+  <button mat-button type="button" class="br-tenant" [matMenuTriggerFor]="tenantsMenu">
+    @if (logo(); as logo) {
+      <img class="br-tenant__logo" [src]="logo" alt="" />
+    } @else {
+      <mat-icon>domain</mat-icon>
+    }
+    <span class="br-tenant__name">{{ session.tenant() ? session.appName() : ('layout.noCompany' | t) }}</span>
+    <mat-icon iconPositionEnd>expand_more</mat-icon>
+  </button>
+  <mat-menu #tenantsMenu="matMenu">
+    @if (session.tenant(); as tenant) {
+      <div class="br-menu-caption">{{ 'layout.workingOn' | t }}<strong>{{ tenant.name }}</strong></div>
+    }
+    @for (tenant of otherTenants(); track tenant.id) {
+      <button mat-menu-item type="button" (click)="switchTenant(tenant.slug)"><mat-icon>swap_horiz</mat-icon>{{ tenant.name }}</button>
+    }
+    @if (session.isPlatformAdmin()) {
+      <mat-divider />
+      <a mat-menu-item [routerLink]="link('plataforma/empresas')"><mat-icon>domain_add</mat-icon>{{ 'nav.tenants' | t }}</a>
+    }
+  </mat-menu>
+</ng-template>
+
+<ng-template #tools>
+  @if (outbox.count() > 0 || !outbox.online()) {
+    <a mat-button class="br-offline" [class.br-offline--down]="!outbox.online()" [routerLink]="link('boletas/pendientes')" [matTooltip]="(outbox.online() ? 'layout.pendingSync' : 'layout.offline') | t: { n: outbox.count() }">
+      <mat-icon>{{ outbox.online() ? 'cloud_upload' : 'cloud_off' }}</mat-icon>
+      @if (outbox.count() > 0) {
+        <span>{{ outbox.count() }}</span>
+      }
+    </a>
+  }
+  <button mat-icon-button type="button" [matMenuTriggerFor]="inboxMenu" (menuOpened)="inbox.refresh()" [attr.aria-label]="'layout.notifications' | t">
+    <mat-icon aria-hidden="false" [matBadge]="inbox.unread() > 0 ? inbox.unread() : null" matBadgeSize="small" matBadgeColor="warn">notifications</mat-icon>
+  </button>
+  <mat-menu #inboxMenu="matMenu" class="br-inbox-menu" xPosition="before">
+    <div class="br-inbox__header" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+      <strong>{{ 'layout.notifications' | t }}</strong>
+      @if (inbox.hasUnread()) {
+        <button mat-button type="button" (click)="inbox.markRead()">{{ 'layout.markAllRead' | t }}</button>
+      }
+    </div>
+    @for (item of inbox.items(); track item.id) {
+      <button mat-menu-item type="button" class="br-inbox__item" [class.br-inbox__item--unread]="!item.isRead" (click)="openNotification(item.link, item.id)">
+        <mat-icon [class]="'br-sev br-sev--' + item.severity">{{ item.severity === 'critical' ? 'error' : item.severity === 'warning' ? 'warning' : item.severity === 'success' ? 'check_circle' : 'info' }}</mat-icon>
+        <span class="br-inbox__text">
+          <strong>{{ item.title }}</strong>
+          <small>{{ item.body }}</small>
+          <small class="cl-muted">{{ item.createdAt | dt }}</small>
+        </span>
+      </button>
+    } @empty {
+      <div class="br-inbox__empty cl-muted">{{ 'layout.noNotifications' | t }}</div>
+    }
+  </mat-menu>
+
+  @if (standalone) {
+    <button mat-icon-button type="button" (click)="theme.toggleDark()" [matTooltip]="'layout.darkMode' | t">
+      <mat-icon>{{ theme.isDark() ? 'light_mode' : 'dark_mode' }}</mat-icon>
+    </button>
+    <button mat-icon-button type="button" [matMenuTriggerFor]="userMenu" [attr.aria-label]="'layout.account' | t"><mat-icon>account_circle</mat-icon></button>
+    <mat-menu #userMenu="matMenu" xPosition="before">
+      <div class="br-menu-caption">
+        <strong>{{ session.user()?.fullName ?? session.user()?.username }}</strong>
+        <span class="cl-muted">{{ session.user()?.email }}</span>
+      </div>
+      <button mat-menu-item type="button" (click)="toggleLanguage()"><mat-icon>translate</mat-icon>{{ 'layout.language' | t }}</button>
+      @if (auth) {
+        <button mat-menu-item type="button" (click)="auth.accountConsole()"><mat-icon>manage_accounts</mat-icon>{{ 'layout.myAccount' | t }}</button>
+      }
+      @if (chronolithUrl) {
+        <a mat-menu-item [href]="chronolithUrl"><mat-icon>open_in_new</mat-icon>{{ 'layout.openChronoLith' | t }}</a>
+      }
+      <mat-divider />
+      @if (auth) {
+        <button mat-menu-item type="button" (click)="auth.logout()"><mat-icon>logout</mat-icon>{{ 'layout.logout' | t }}</button>
+      }
+    </mat-menu>
+  }
+</ng-template>

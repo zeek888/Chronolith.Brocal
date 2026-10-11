@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>ChronoLith.Brocal.Domain</RootNamespace>
+  </PropertyGroup>
+
+</Project>

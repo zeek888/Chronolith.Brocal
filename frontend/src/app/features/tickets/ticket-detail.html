@@ -1,0 +1,180 @@
+<div class="cl-page">
+  @if (ticket.isLoading() || busy()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+  @if (ticket.value(); as t) {
+    <br-page-header [title]="t.folio" icon="receipt_long" [subtitle]="t.customerName + ' · ' + t.siteName">
+      <a mat-button [routerLink]="nav.to('boletas')"><mat-icon>arrow_back</mat-icon>{{ 'common.back' | t }}</a>
+      @if (isDraft()) {
+        <a *brCan="p.ticketsCapture" mat-stroked-button [routerLink]="nav.to('boletas', t.id, 'editar')"><mat-icon>edit</mat-icon>{{ 'common.edit' | t }}</a>
+        <button *brCan="p.ticketsSign" mat-flat-button type="button" (click)="sign()" [disabled]="busy()"><mat-icon>draw</mat-icon>{{ 'tickets.sign' | t }}</button>
+        @if (serviceType.value()?.requiresSignature === false && !session.tenant()?.settings?.requireCustomerSignature) {
+          <button *brCan="p.ticketsCapture" mat-stroked-button type="button" (click)="closeWithoutSignature()" [disabled]="busy()"><mat-icon>task_alt</mat-icon>{{ 'tickets.close' | t }}</button>
+        }
+      }
+      @if (t.status === 'signed') {
+        <button *brCan="p.ticketsApprove" mat-flat-button type="button" (click)="approve()" [disabled]="busy()"><mat-icon>verified</mat-icon>{{ 'tickets.approve' | t }}</button>
+      }
+      @if (canInvoice()) {
+        <a *brCan="p.invoicingIssue" mat-flat-button [routerLink]="nav.to('facturacion/nueva')" [queryParams]="{ boleta: t.id, cliente: t.customerId }"><mat-icon>request_page</mat-icon>{{ 'tickets.invoice' | t }}</a>
+      }
+      @if (t.status !== 'draft') {
+        <button mat-stroked-button type="button" (click)="pdf(false)"><mat-icon>picture_as_pdf</mat-icon>{{ 'common.pdf' | t }}</button>
+        <button mat-icon-button type="button" (click)="pdf(true)" [matTooltip]="'common.download' | t"><mat-icon>download</mat-icon></button>
+      }
+      @if (t.status === 'signed' || t.status === 'approved') {
+        <button *brCan="p.ticketsReopen" mat-stroked-button type="button" (click)="reopen()" [disabled]="busy()"><mat-icon>lock_open</mat-icon>{{ 'tickets.reopen' | t }}</button>
+      }
+      @if (t.status !== 'invoiced' && t.status !== 'cancelled') {
+        <button *brCan="p.ticketsCancel" mat-stroked-button type="button" (click)="cancel()" [disabled]="busy()"><mat-icon>cancel</mat-icon>{{ 'tickets.cancel' | t }}</button>
+      }
+      @if (isDraft()) {
+        <button *brCan="p.ticketsCapture" mat-icon-button type="button" (click)="remove()" [matTooltip]="'tickets.deleteTitle' | t"><mat-icon>delete</mat-icon></button>
+      }
+    </br-page-header>
+
+    <section class="br-card">
+      <div class="br-actions">
+        <br-status enum="ticketStatus" [value]="t.status" />
+        @if (t.invoiceReference) {
+          <a class="cl-chip cl-chip--success" [routerLink]="nav.to('facturacion/facturas', t.invoiceId)"><mat-icon>request_page</mat-icon>{{ t.invoiceReference }}</a>
+        }
+        @if (t.workOrderFolio) {
+          <a class="cl-chip cl-chip--info" [routerLink]="nav.to('ordenes', t.workOrderId)"><mat-icon>event_note</mat-icon>{{ t.workOrderFolio }}</a>
+        }
+      </div>
+      @if (t.cancellationReason) {
+        <div class="br-warning-box br-warning-box--error" style="margin-top: 12px"><mat-icon>cancel</mat-icon>{{ 'tickets.cancelledBecause' | t: { reason: t.cancellationReason } }}</div>
+      }
+      <dl class="br-dl" style="margin-top: 12px">
+        <div><dt>{{ 'fields.serviceType' | t }}</dt><dd>{{ t.serviceTypeName }}</dd></div>
+        <div><dt>{{ 'fields.serviceDate' | t }}</dt><dd>{{ t.serviceDate | d }}</dd></div>
+        <div><dt>{{ 'fields.startedAt' | t }}</dt><dd>{{ t.startedAt | dt }}</dd></div>
+        <div><dt>{{ 'fields.finishedAt' | t }}</dt><dd>{{ t.finishedAt | dt }}</dd></div>
+        <div><dt>{{ 'fields.customer' | t }}</dt><dd>{{ t.customerName }}</dd></div>
+        <div><dt>{{ 'fields.contract' | t }}</dt><dd>{{ t.contractName ?? '—' }}</dd></div>
+        <div><dt>{{ 'fields.site' | t }}</dt><dd>{{ t.siteName }}</dd></div>
+        <div><dt>{{ 'fields.crew' | t }}</dt><dd>{{ t.crewName ?? '—' }}</dd></div>
+        <div><dt>{{ 'fields.customerRepresentative' | t }}</dt><dd>{{ t.customerRepresentative ?? '—' }}</dd></div>
+        <div><dt>{{ 'fields.capturedBy' | t }}</dt><dd>{{ t.capturedByName ?? '—' }}</dd></div>
+      </dl>
+      <div class="br-chips" style="margin-top: 12px">
+        @for (u of t.units; track u.id) {
+          <a class="cl-chip cl-chip--info" [routerLink]="nav.to('flota/unidades', u.id)"><mat-icon>local_shipping</mat-icon>{{ u.code }}</a>
+        }
+        @for (e of t.employees; track e.id) {
+          <span class="cl-chip"><mat-icon>person</mat-icon>{{ e.name }}</span>
+        }
+      </div>
+    </section>
+
+    <div class="br-grid br-grid--2">
+      <section class="br-card">
+        <h2>{{ t.serviceTypeName }}</h2>
+        <dl class="br-dl">
+          @for (a of answers(); track a.label) {
+            <div><dt>{{ a.label }}</dt><dd>{{ a.value }} {{ a.value !== '—' ? (a.unit ?? '') : '' }}</dd></div>
+          } @empty {
+            <div class="cl-muted">—</div>
+          }
+        </dl>
+        @if (t.description) {
+          <h3 class="br-form-section">{{ 'fields.workPerformed' | t }}</h3>
+          <p class="br-pre">{{ t.description }}</p>
+        }
+        @if (t.observations) {
+          <h3 class="br-form-section">{{ 'fields.observations' | t }}</h3>
+          <p class="br-pre">{{ t.observations }}</p>
+        }
+      </section>
+
+      <section class="br-card">
+        <h2>{{ 'tickets.sections.signature' | t }}</h2>
+        @if (t.signatureUrl) {
+          <img class="br-signature-image" [src]="url(t.signatureUrl)" alt="" />
+          <p><strong>{{ t.signerName }}</strong>@if (t.signerPosition) {<span> · {{ t.signerPosition }}</span>}</p>
+          <p class="cl-muted">{{ t.signedAt | dt }}</p>
+        } @else if (t.signedAt) {
+          <p>{{ 'tickets.closedWithoutSignature' | t: { date: (t.signedAt | dt) } }}</p>
+        } @else {
+          <p class="cl-muted">{{ 'tickets.notSigned' | t }}</p>
+        }
+        @if (t.approvedAt) {
+          <p><mat-icon class="br-inline-icon">verified</mat-icon>{{ 'tickets.approvedBy' | t: { name: t.approvedBy, date: (t.approvedAt | dt) } }}</p>
+        }
+      </section>
+    </div>
+
+    <section class="br-card">
+      <h2>{{ 'tickets.sections.lines' | t }}</h2>
+      <div class="cl-table-wrapper">
+        <table class="br-table">
+          <thead>
+            <tr>
+              <th>{{ 'fields.service' | t }}</th>
+              <th class="br-end">{{ 'fields.quantity' | t }}</th>
+              <th class="br-end">{{ 'fields.unitPrice' | t }}</th>
+              <th class="br-wide">{{ 'fields.priceSource' | t }}</th>
+              <th class="br-end">{{ 'fields.amount' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of t.lines; track line.id) {
+              <tr>
+                <td>{{ line.description }}<div class="br-sub">{{ line.serviceCode }}</div></td>
+                <td class="br-end">{{ line.quantity | num: 3 }} {{ line.unitName }}</td>
+                <td class="br-end">{{ line.unitPrice | money: t.currency }}</td>
+                <td class="br-wide">{{ line.priceSource | enum: 'priceSource' }}</td>
+                <td class="br-end">{{ line.amount | money: t.currency }}</td>
+              </tr>
+            } @empty {
+              <tr><td colspan="5" class="br-table-empty">{{ 'tickets.noLines' | t }}</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="br-totals">
+        <span>{{ 'fields.subtotal' | t }}</span><strong>{{ t.subtotal | money: t.currency }}</strong>
+        <span>{{ 'fields.vat' | t }}</span><strong>{{ t.vat | money: t.currency }}</strong>
+        <span class="br-totals__grand">{{ 'fields.total' | t }}</span><strong class="br-totals__grand">{{ t.total | money: t.currency }}</strong>
+      </div>
+    </section>
+
+    <section class="br-card">
+      <h2>{{ 'tickets.sections.photos' | t }} ({{ t.photos.length }})</h2>
+      <div class="br-photos">
+        @for (photo of t.photos; track photo.id) {
+          <a class="br-photo" [href]="url(photo.url)" target="_blank" rel="noopener">
+            <img [src]="url(photo.url)" [alt]="photo.caption ?? ''" loading="lazy" />
+            @if (photo.caption) {
+              <figcaption>{{ photo.caption }}</figcaption>
+            }
+          </a>
+        } @empty {
+          <p class="cl-muted">{{ 'tickets.noPhotos' | t }}</p>
+        }
+      </div>
+    </section>
+
+    <section *brCan="[p.crewsRead, p.billingRead, p.dashboardRead]" class="br-card">
+      <div class="br-card__header">
+        <h2>{{ 'tickets.cost' | t }}</h2>
+        @if (!cost()) {
+          <button mat-stroked-button type="button" (click)="loadCost()"><mat-icon>calculate</mat-icon>{{ 'tickets.calculateCost' | t }}</button>
+        }
+      </div>
+      @if (cost(); as c) {
+        <div class="br-kpis">
+          <br-kpi [label]="'tickets.revenue' | t" [value]="c.revenue" format="money" icon="payments" />
+          <br-kpi [label]="'tickets.laborHours' | t" [value]="c.laborHours" icon="schedule" />
+          <br-kpi [label]="'tickets.laborCost' | t" [value]="c.laborCost" format="money" icon="engineering" />
+          <br-kpi [label]="'tickets.margin' | t" [value]="c.margin" format="money" icon="trending_up" [tone]="c.margin >= 0 ? 'success' : 'error'" />
+        </div>
+      } @else {
+        <p class="cl-muted">{{ 'tickets.costHint' | t }}</p>
+      }
+    </section>
+
+    <p class="cl-muted br-audit-line">{{ 'common.createdBy' | t: { name: t.createdBy ?? '—', date: (t.createdAt | dt) } }}@if (t.updatedAt) { · {{ 'common.updatedBy' | t: { name: t.updatedBy ?? '—', date: (t.updatedAt | dt) } }}}</p>
+  }
+</div>

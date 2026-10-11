@@ -1,0 +1,8 @@
+{
+  "keycloak": {
+    "url": "http://localhost:8181",
+    "realm": "brocal",
+    "clientId": "brocal-web"
+  },
+  "chronolithUrl": null
+}

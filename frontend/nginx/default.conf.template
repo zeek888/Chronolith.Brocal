@@ -1,0 +1,67 @@
+# Plantilla de nginx de Brocal (envsubst reemplaza ${BROCAL_API_UPSTREAM} al arrancar el contenedor).
+# Sirve el remote de Native Federation para el Shell de ChronoLith, la página independiente y reenvía /api.
+
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+    absolute_redirect off;
+
+    # Fotos de evidencia, documentos de expedientes y comprobantes (la API acepta hasta 25 MB por archivo).
+    client_max_body_size 30m;
+
+    # La API se publica en el mismo origen que el remote: el Shell la registra como apiBaseUrl
+    # (http://<host>:4303/api, o /modules/brocal/api detrás del gateway) y el backend responde CORS al Shell.
+    location /api/ {
+        proxy_pass ${BROCAL_API_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        # Reportes mensuales y exportaciones a Excel de periodos largos.
+        proxy_read_timeout 180s;
+    }
+
+    location /scalar {
+        proxy_pass ${BROCAL_API_UPSTREAM};
+        proxy_set_header Host $host;
+    }
+
+    location /openapi/ {
+        proxy_pass ${BROCAL_API_UPSTREAM};
+        proxy_set_header Host $host;
+    }
+
+    location = /health {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok";
+    }
+
+    # Metadatos de Native Federation, configuración de ejecución y manifiesto de la PWA: nunca en caché (apuntan a
+    # los archivos con hash de la versión vigente). El Shell los descarga desde su propio origen, de ahí el CORS.
+    location ~ ^/(remoteEntry\.json|importmap\.json|index\.html|config\.json|manifest\.webmanifest)$ {
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cache-Control "no-store" always;
+        try_files $uri =404;
+    }
+
+    # Archivos con hash: caché larga, también accesibles desde el Shell.
+    location ~* \.(?:js|mjs|css|woff2?|ttf|svg|png|jpg|webp|ico)$ {
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # Página independiente (rutas de Angular).
+    location / {
+        add_header Cache-Control "no-cache";
+        try_files $uri $uri/ /index.html;
+    }
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+}

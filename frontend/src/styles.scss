@@ -1,0 +1,164 @@
+@use '@angular/material' as mat;
+
+// Standalone application only: inside ChronoLith the Shell provides the theme, fonts and these helpers.
+// The company theme (its palette or the one configured in ChronoLith) overrides every --mat-sys-* token at
+// runtime (BrocalTheme), so these build-time palettes are just the fallback.
+html {
+  color-scheme: light;
+
+  @include mat.theme((
+    color: (
+      primary: mat.$azure-palette,
+      tertiary: mat.$orange-palette,
+      theme-type: color-scheme,
+    ),
+    typography: (
+      plain-family: ('Inter Variable', 'Segoe UI', Roboto, sans-serif),
+      brand-family: ('Montserrat Variable', 'Segoe UI', Roboto, sans-serif),
+      bold-weight: 700,
+      medium-weight: 600,
+      regular-weight: 400,
+    ),
+    density: 0,
+  ));
+
+  --cl-radius-sm: 8px;
+  --cl-radius-md: 12px;
+  --cl-radius-lg: 20px;
+
+  @include mat.toolbar-overrides((
+    container-background-color: var(--mat-sys-surface-container-lowest),
+    container-text-color: var(--mat-sys-on-surface),
+  ));
+  @include mat.sidenav-overrides((
+    container-background-color: var(--mat-sys-surface-container-low),
+    content-background-color: var(--mat-sys-surface),
+    container-shape: 0,
+  ));
+  @include mat.form-field-overrides((
+    outlined-container-shape: var(--cl-radius-sm),
+  ));
+}
+
+html.cl-density--1 { @include mat.theme((density: -1)); }
+html.cl-density--2 { @include mat.theme((density: -2)); }
+html.cl-density--3 { @include mat.theme((density: -3)); }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font: var(--mat-sys-body-medium);
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--mat-sys-headline-small-font);
+  color: var(--mat-sys-on-surface);
+  margin: 0;
+}
+
+a { color: var(--mat-sys-primary); }
+
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+// Same helpers as the ChronoLith Shell, so pages look identical inside and outside the platform.
+.cl-page {
+  box-sizing: border-box;
+  padding: 24px;
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  @media (max-width: 600px) { padding: 16px; }
+}
+
+.cl-surface {
+  background: var(--mat-sys-surface-container-lowest);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--cl-radius-md);
+}
+
+.cl-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.cl-spacer { flex: 1 1 auto; }
+
+.cl-muted { color: var(--mat-sys-on-surface-variant); }
+
+.cl-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+
+.cl-full-row { grid-column: 1 / -1; }
+
+.cl-search {
+  flex: 1 1 320px;
+  max-width: 520px;
+}
+
+.cl-actions-cell {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.cl-row-link {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+  margin-right: 8px;
+
+  &:hover { text-decoration: underline; }
+}
+
+.cl-table-wrapper {
+  overflow: auto;
+  border-radius: var(--cl-radius-md);
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-lowest);
+
+  table { width: 100%; }
+}
+
+.cl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font: var(--mat-sys-label-medium);
+  white-space: nowrap;
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+
+  &--success { background: var(--cl-success-container); color: var(--cl-on-success-container); }
+  &--warning { background: var(--cl-warning-container); color: var(--cl-on-warning-container); }
+  &--info { background: var(--cl-info-container); color: var(--cl-on-info-container); }
+  &--error { background: var(--mat-sys-error-container); color: var(--mat-sys-on-error-container); }
+  &--primary { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+}
+
+.cl-snack--success { @include mat.snack-bar-overrides((container-color: var(--cl-success), supporting-text-color: var(--cl-on-success))); }
+.cl-snack--error { @include mat.snack-bar-overrides((container-color: var(--mat-sys-error), supporting-text-color: var(--mat-sys-on-error))); }
+
+.cl-brand-rule {
+  height: 3px;
+  width: 72px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--cl-brand-primary, var(--mat-sys-primary)), var(--cl-brand-secondary, var(--mat-sys-secondary)) 55%, var(--cl-brand-accent, var(--mat-sys-tertiary)));
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--mat-sys-outline-variant); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
