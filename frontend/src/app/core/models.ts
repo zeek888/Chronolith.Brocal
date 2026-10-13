@@ -98,7 +98,8 @@ export type QuoteAction = 'send' | 'accept' | 'reject';
 export type AuditAction = 'created' | 'updated' | 'deleted' | 'statusChanged' | 'signed' | 'cancelled' | 'reopened' | 'stamped' | 'exported' | 'accessed';
 export type NotificationEvent =
   | 'ticketSigned' | 'ticketCancelled' | 'workOrderAssigned' | 'unitReleased' | 'permitExpiring' | 'documentExpiring' | 'maintenanceDue'
-  | 'invoiceStamped' | 'invoiceOverdue' | 'incidentReported' | 'quoteAccepted' | 'expenseSubmitted' | 'fuelAnomaly' | 'lowStock' | 'uninvoicedTickets';
+  | 'invoiceStamped' | 'invoiceOverdue' | 'incidentReported' | 'quoteAccepted' | 'expenseSubmitted' | 'fuelAnomaly' | 'lowStock' | 'uninvoicedTickets'
+  | 'approvalRequested' | 'approvalDecided' | 'businessRuleAlert' | 'contractExpiring' | 'correctiveActionDue' | 'apiKeyExpiring' | 'documentMissing';
 export type NotificationSeverity = 'info' | 'success' | 'warning' | 'critical';
 export type OutboxStatus = 'pending' | 'sent' | 'failed' | 'simulated';
 export type OutboxChannel = 'email' | 'whatsApp';
@@ -1399,6 +1400,8 @@ export interface InvoiceableTicket {
   subtotal: number;
   total: number;
   inDraft: boolean;
+  /** The validation workflow of the ticket keeps it from being invoiced. */
+  held: 'pending' | 'rejected' | null;
 }
 
 export interface PaymentSummary {
@@ -1681,4 +1684,234 @@ export interface PortalSummary {
   balance: number;
   overdueBalance: number;
   recentTickets: PortalTicket[];
+}
+
+// ---- Workflows and business rules ------------------------------------------------------------------
+
+export type AutomationDocument = 'serviceTicket' | 'workOrder' | 'quote' | 'invoice' | 'expenseReport' | 'maintenanceOrder' | 'fuelLoad' | 'inventoryMovement';
+export type AutomationTrigger = 'save' | 'close' | 'approve' | 'dispatch' | 'send' | 'stamp' | 'submit';
+export type FactType = 'number' | 'money' | 'boolean' | 'enum' | 'reference';
+export type ConditionOperator = 'equal' | 'notEqual' | 'greaterThan' | 'greaterOrEqual' | 'lessThan' | 'lessOrEqual' | 'in' | 'notIn' | 'isTrue' | 'isFalse';
+export type ConditionMatch = 'all' | 'any';
+export type WorkflowCompletion = 'execute' | 'unlock';
+export type WorkflowStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type RuleEffect = 'block' | 'notify';
+export type ApprovalView = 'mine' | 'requested' | 'all';
+export type ApprovalStepState = 'approved' | 'current' | 'waiting' | 'rejected' | 'cancelled';
+
+/** Datum of a document that conditions can test. */
+export interface FactDefinition {
+  key: string;
+  type: FactType;
+  name: string;
+  nameEn: string;
+  values: string[] | null;
+  /** Translations enums.<enumName>.<value> of enum facts (null: the values are shown as they are). */
+  enumName: string | null;
+  /** Lookup catalog of reference facts. */
+  catalog: string | null;
+  /** Depends on the moment (it does not invalidate an approval already given). */
+  volatile: boolean;
+  /** Records of one company: only company definitions can use it. */
+  companyOnly: boolean;
+}
+
+export interface WorkflowGate {
+  start: AutomationTrigger;
+  completion: WorkflowCompletion;
+  description: string;
+  descriptionEn: string;
+}
+
+export interface AutomationDocumentInfo {
+  document: AutomationDocument;
+  module: string;
+  enabled: boolean;
+  name: string;
+  nameEn: string;
+  icon: string;
+  triggers: AutomationTrigger[];
+  workflow: WorkflowGate | null;
+  facts: FactDefinition[];
+}
+
+export interface AutomationCatalog {
+  documents: AutomationDocumentInfo[];
+  triggers: { trigger: AutomationTrigger; name: string; nameEn: string }[];
+  roleTemplates: { key: string; name: string }[];
+  canManage: boolean;
+  canManageGlobal: boolean;
+}
+
+export interface RuleCondition {
+  field: string;
+  operator: ConditionOperator;
+  value: string | null;
+}
+
+/** People chosen by role template (every company), company role, permission or the company administrators. */
+export interface Audience {
+  roleTemplates: string[];
+  roleIds: Guid[];
+  permissions: string[];
+  tenantAdmins: boolean;
+}
+
+export interface WorkflowStep {
+  name: string;
+  approvers: Audience;
+  requiredApprovals: number;
+  slaHours: number | null;
+  allowRequester: boolean;
+}
+
+export interface WorkflowDefinition {
+  id: Guid;
+  isGlobal: boolean;
+  name: string;
+  description: string | null;
+  document: AutomationDocument;
+  isEnabled: boolean;
+  isMandatory: boolean;
+  priority: number;
+  match: ConditionMatch;
+  conditions: RuleCondition[];
+  steps: WorkflowStep[];
+  optedOut: boolean;
+  canEdit: boolean;
+  pending: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime | null;
+  updatedBy: string | null;
+}
+
+export interface RuleRecipients {
+  audience: Audience;
+  emails: string[];
+  notifyActor: boolean;
+}
+
+export interface BusinessRule {
+  id: Guid;
+  isGlobal: boolean;
+  name: string;
+  description: string | null;
+  document: AutomationDocument;
+  triggers: AutomationTrigger[];
+  isEnabled: boolean;
+  isMandatory: boolean;
+  priority: number;
+  match: ConditionMatch;
+  conditions: RuleCondition[];
+  effect: RuleEffect;
+  message: string;
+  severity: NotificationSeverity;
+  recipients: RuleRecipients;
+  optedOut: boolean;
+  canEdit: boolean;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime | null;
+  updatedBy: string | null;
+}
+
+export interface WorkflowDecision {
+  step: number;
+  membershipId: Guid | null;
+  name: string;
+  approved: boolean;
+  comment: string | null;
+  at: IsoDateTime;
+}
+
+export interface ApprovalSummary {
+  id: Guid;
+  document: AutomationDocument;
+  documentId: Guid;
+  reference: string;
+  link: string;
+  definitionName: string;
+  fromGlobalDefinition: boolean;
+  status: WorkflowStatus;
+  currentStep: number;
+  stepCount: number;
+  stepName: string | null;
+  requestedByName: string;
+  requestedAt: IsoDateTime;
+  stepStartedAt: IsoDateTime;
+  completedAt: IsoDateTime | null;
+  closingComment: string | null;
+  amount: number | null;
+  overdue: boolean;
+  canDecide: boolean;
+}
+
+export interface ApprovalStep {
+  index: number;
+  name: string;
+  requiredApprovals: number;
+  slaHours: number | null;
+  allowRequester: boolean;
+  approvers: Audience;
+  state: ApprovalStepState;
+  approverNames: string[];
+}
+
+export interface ApprovalDetail {
+  summary: ApprovalSummary;
+  steps: ApprovalStep[];
+  decisions: WorkflowDecision[];
+  facts: Record<string, string | null>;
+  conditions: RuleCondition[];
+  match: ConditionMatch;
+  canCancel: boolean;
+}
+
+export interface DocumentWorkflow {
+  document: AutomationDocument;
+  documentId: Guid;
+  atGate: boolean;
+  applies: boolean;
+  definitionName: string | null;
+  current: ApprovalDetail | null;
+  history: ApprovalSummary[];
+  canRequest: boolean;
+}
+
+export interface RequestApprovalResult {
+  required: boolean;
+  instanceId: Guid | null;
+  message: string;
+}
+
+/** Body of a 202: the action waits for the approval request. */
+export interface ApprovalPending {
+  approvalPending: true;
+  instanceId: Guid;
+  message: string;
+}
+
+export interface JobCompanyResult {
+  slug: string;
+  name: string;
+  counts: Record<string, number>;
+  error: string | null;
+}
+
+export interface ScheduledJobRun {
+  id: Guid;
+  job: string;
+  triggeredBy: string;
+  startedAt: IsoDateTime;
+  finishedAt: IsoDateTime | null;
+  companies: number;
+  notices: number;
+  failures: number;
+  details: JobCompanyResult[];
+}
+
+export interface ScheduledJobs {
+  backgroundEnabled: boolean;
+  intervalMinutes: number;
+  nextRunAt: IsoDateTime | null;
+  runs: ScheduledJobRun[];
 }

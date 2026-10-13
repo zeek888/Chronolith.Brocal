@@ -19,7 +19,14 @@ public enum NotificationEvent
     ExpenseSubmitted = 11,
     FuelAnomaly = 12,
     LowStock = 13,
-    UninvoicedTickets = 14
+    UninvoicedTickets = 14,
+    ApprovalRequested = 15,
+    ApprovalDecided = 16,
+    BusinessRuleAlert = 17,
+    ContractExpiring = 18,
+    CorrectiveActionDue = 19,
+    ApiKeyExpiring = 20,
+    DocumentMissing = 21
 }
 
 [Flags]

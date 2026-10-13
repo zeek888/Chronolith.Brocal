@@ -1,6 +1,9 @@
 # Brocal en modo independiente: su propio Keycloak (realm "brocal", tema de ChronoLith) además de BD, API y web.
 # No necesita la plataforma ChronoLith ni la red chronolith-net.
-#   docker compose -f docker-compose.standalone.yml up -d --build
+# Usa siempre su propio archivo de variables: el .env de la carpeta es del modo módulo (Keycloak de ChronoLith) y
+# Compose lo leería por omisión.
+#   cp .env.standalone.example standalone.env      (una vez; ajusta contraseñas y SMTP)
+#   docker compose -f docker-compose.standalone.yml --env-file standalone.env up -d --build
 name: brocal-standalone
 
 services:

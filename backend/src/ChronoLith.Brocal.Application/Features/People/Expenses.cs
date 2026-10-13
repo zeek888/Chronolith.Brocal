@@ -2,7 +2,9 @@ using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.Automation;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Common;
 using ChronoLith.Brocal.Domain.People;
 using ChronoLith.Brocal.Domain.Platform;
@@ -80,7 +82,7 @@ internal sealed class SaveExpenseReportCommandValidator : AbstractValidator<Save
     }
 }
 
-internal sealed class SaveExpenseReportCommandHandler(IApplicationDbContext db, ITenantContext tenant, IFolioService folios) : ICommandHandler<SaveExpenseReportCommand, Guid>
+internal sealed class SaveExpenseReportCommandHandler(IApplicationDbContext db, ITenantContext tenant, IFolioService folios, IBusinessRules rules) : ICommandHandler<SaveExpenseReportCommand, Guid>
 {
     public async Task<Result<Guid>> Handle(SaveExpenseReportCommand command, CancellationToken cancellationToken)
     {
@@ -115,6 +117,12 @@ internal sealed class SaveExpenseReportCommandHandler(IApplicationDbContext db, 
                 return updated.Error;
             }
 
+            var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.ExpenseReport, report.Id, report.Folio, DocumentFacts.Expense(report)), AutomationTrigger.Save, cancellationToken);
+            if (checks.IsFailure)
+            {
+                return checks.Error;
+            }
+
             await db.SaveChangesAsync(cancellationToken);
             return report.Id;
         }
@@ -126,6 +134,12 @@ internal sealed class SaveExpenseReportCommandHandler(IApplicationDbContext db, 
             if (created.IsFailure)
             {
                 return Result.Failure<Guid>(created.Error);
+            }
+
+            var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.ExpenseReport, created.Value.Id, created.Value.Folio, DocumentFacts.Expense(created.Value)), AutomationTrigger.Save, ct);
+            if (checks.IsFailure)
+            {
+                return Result.Failure<Guid>(checks.Error);
             }
 
             db.ExpenseReports.Add(created.Value);
@@ -150,7 +164,9 @@ internal sealed class ChangeExpenseStatusCommandHandler(
     ITenantContext tenant,
     IUserContext user,
     ITenantClock clock,
-    INotificationPublisher notifications) : ICommandHandler<ChangeExpenseStatusCommand>
+    INotificationPublisher notifications,
+    IBusinessRules rules,
+    IWorkflowEngine workflows) : ICommandHandler<ChangeExpenseStatusCommand>
 {
     public async Task<Result> Handle(ChangeExpenseStatusCommand command, CancellationToken cancellationToken)
     {
@@ -163,6 +179,24 @@ internal sealed class ChangeExpenseStatusCommandHandler(
         if (command.Action != ExpenseAction.Submit && !tenant.Has(Permissions.ExpensesApprove))
         {
             return Error.Forbidden("Expenses.Forbidden", "No tienes permiso para autorizar comprobaciones.");
+        }
+
+        // A report under an approval workflow is approved or rejected by the approvers of its request.
+        if (command.Action is ExpenseAction.Approve or ExpenseAction.Reject &&
+            await workflows.PendingAsync(AutomationDocument.ExpenseReport, report.Id, cancellationToken) is { } pending)
+        {
+            return WorkflowErrors.InProgress(report.Folio, pending.Step?.Name ?? string.Empty);
+        }
+
+        var facts = DocumentFacts.Expense(report);
+        if (command.Action is ExpenseAction.Submit or ExpenseAction.Approve)
+        {
+            var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.ExpenseReport, report.Id, report.Folio, facts),
+                command.Action == ExpenseAction.Submit ? AutomationTrigger.Submit : AutomationTrigger.Approve, cancellationToken);
+            if (checks.IsFailure)
+            {
+                return checks;
+            }
         }
 
         var now = clock.UtcNow;
@@ -181,14 +215,26 @@ internal sealed class ChangeExpenseStatusCommandHandler(
 
         if (command.Action == ExpenseAction.Submit)
         {
-            await notifications.PublishAsync(new NotificationMessage(NotificationEvent.ExpenseSubmitted, NotificationSeverity.Info,
-                $"Comprobación {report.Folio} enviada", $"{report.Purpose} · total {report.Total:C2}, anticipo {report.AdvanceAmount:C2}.", $"viaticos/{report.Id}"), cancellationToken);
+            // With an approval workflow its approvers are notified by the request; otherwise, the usual notice.
+            var request = await workflows.StartAsync(new WorkflowSubject(AutomationDocument.ExpenseReport, report.Id, report.Folio, facts), cancellationToken);
+            if (request is null)
+            {
+                await notifications.PublishAsync(new NotificationMessage(NotificationEvent.ExpenseSubmitted, NotificationSeverity.Info,
+                    $"Comprobación {report.Folio} enviada", $"{report.Purpose} · total {report.Total:C2}, anticipo {report.AdvanceAmount:C2}.", $"viaticos/{report.Id}"), cancellationToken);
+            }
         }
         else
         {
             var owner = await db.Memberships.AsNoTracking().Where(m => m.EmployeeId == report.EmployeeId).Select(m => m.Id).ToListAsync(cancellationToken);
+            var status = report.Status switch
+            {
+                ExpenseStatus.Approved => "autorizada",
+                ExpenseStatus.Rejected => "rechazada",
+                ExpenseStatus.Paid => "pagada",
+                _ => "actualizada"
+            };
             await notifications.PublishAsync(new NotificationMessage(NotificationEvent.ExpenseSubmitted, NotificationSeverity.Info,
-                $"Comprobación {report.Folio}: {report.Status}", command.Reason ?? $"Saldo: {report.Balance:C2}.", $"viaticos/{report.Id}", owner), cancellationToken);
+                $"Comprobación {report.Folio} {status}", command.Reason ?? $"Saldo: {report.Balance:C2}.", $"viaticos/{report.Id}", owner), cancellationToken);
         }
 
         await db.SaveChangesAsync(cancellationToken);

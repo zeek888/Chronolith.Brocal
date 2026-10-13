@@ -3,7 +3,9 @@ using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.Automation;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Common;
 using ChronoLith.Brocal.Domain.Inventory;
 using ChronoLith.Brocal.Domain.People;
@@ -183,7 +185,7 @@ internal sealed class RegisterMovementCommandValidator : AbstractValidator<Regis
     }
 }
 
-internal sealed class RegisterMovementCommandHandler(IApplicationDbContext db) : ICommandHandler<RegisterMovementCommand, Guid>
+internal sealed class RegisterMovementCommandHandler(IApplicationDbContext db, IBusinessRules rules) : ICommandHandler<RegisterMovementCommand, Guid>
 {
     public async Task<Result<Guid>> Handle(RegisterMovementCommand command, CancellationToken cancellationToken)
     {
@@ -252,6 +254,22 @@ internal sealed class RegisterMovementCommandHandler(IApplicationDbContext db) :
         if (movement.IsFailure)
         {
             return movement.Error;
+        }
+
+        // Stock after the movement: the warehouse in memory, the whole item from the saved stock plus the change.
+        var change = data.Type switch
+        {
+            MovementType.Receipt or MovementType.Return => data.Quantity,
+            MovementType.Transfer => 0,
+            MovementType.Adjustment => difference ?? 0,
+            _ => -data.Quantity
+        };
+        var onHandAfter = await OnHandAsync(item.Id, cancellationToken) + change;
+        var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.InventoryMovement, movement.Value.Id, $"{item.Code} {item.Name}",
+            DocumentFacts.Movement(movement.Value, stock.Quantity, onHandAfter, item.MinStock)), AutomationTrigger.Save, cancellationToken);
+        if (checks.IsFailure)
+        {
+            return checks.Error;
         }
 
         db.InventoryMovements.Add(movement.Value);

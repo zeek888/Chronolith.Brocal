@@ -6,10 +6,11 @@ namespace ChronoLith.Brocal.Domain.UnitTests;
 public sealed class ModuleCatalogTests
 {
     [Fact]
-    public void Catalog_has_the_24_requested_modules_plus_core_master_data()
+    public void Catalog_has_the_24_requested_modules_plus_master_data_and_workflows()
     {
-        Assert.Equal(25, BrocalModules.All.Count);
-        Assert.Equal(Enumerable.Range(0, 25), BrocalModules.All.Select(m => m.Number).Order());
+        Assert.Equal(26, BrocalModules.All.Count);
+        Assert.Equal(Enumerable.Range(0, 26), BrocalModules.All.Select(m => m.Number).Order());
+        Assert.Contains(BrocalModules.Automation, BrocalModules.CoreModules);
     }
 
     [Fact]

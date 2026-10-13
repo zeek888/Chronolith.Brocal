@@ -1028,3 +1028,299 @@
     padding: 4px 8px;
   }
 }
+
+// ---- Workflows and business rules ---------------------------------------------------------------------
+
+// Count of approval requests in the menu.
+.br-nav-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--mat-sys-tertiary);
+  color: var(--mat-sys-on-tertiary);
+  font: var(--mat-sys-label-small);
+  line-height: 20px;
+  text-align: center;
+}
+
+.mat-mdc-menu-item .br-nav-count {
+  margin-left: 8px;
+}
+
+.br-workflow {
+  border-left: 4px solid var(--mat-sys-outline-variant);
+
+  &--pending {
+    border-left-color: var(--cl-warning);
+  }
+}
+
+.br-workflow__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.br-workflow__why {
+  margin: 0 0 12px;
+}
+
+.br-workflow__history {
+  margin-top: 12px;
+
+  summary {
+    cursor: pointer;
+    color: var(--mat-sys-primary);
+    font: var(--mat-sys-label-large);
+  }
+
+  ul {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+.br-steps {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.br-step {
+  display: flex;
+  flex: 1 1 220px;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--cl-radius-sm, 8px);
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-low);
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  small {
+    font: var(--mat-sys-body-small);
+  }
+
+  > mat-icon {
+    flex: none;
+    color: var(--mat-sys-outline);
+  }
+
+  &--approved > mat-icon {
+    color: var(--cl-success);
+  }
+
+  &--current {
+    border-color: var(--cl-warning);
+    background: var(--cl-warning-container);
+    color: var(--cl-on-warning-container);
+
+    > mat-icon {
+      color: var(--cl-warning);
+    }
+  }
+
+  &--rejected > mat-icon {
+    color: var(--mat-sys-error);
+  }
+}
+
+.br-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.br-scope-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.br-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.br-span-2 {
+  grid-column: span 2;
+
+  @media (max-width: 720px) {
+    grid-column: auto;
+  }
+}
+
+.br-hint-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
+.br-conditions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.br-condition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+
+  .mat-mdc-form-field {
+    width: 220px;
+    max-width: 100%;
+  }
+
+  .br-condition__lookup {
+    display: block;
+    width: 280px;
+    max-width: 100%;
+
+    .mat-mdc-form-field {
+      width: 100%;
+    }
+  }
+}
+
+.br-condition__glue {
+  width: 52px;
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-primary);
+  text-transform: uppercase;
+}
+
+// Phones: "SI/Y/O" and the remove button on one row, each field on a full row below.
+@media (max-width: 600px) {
+  .br-condition {
+    .br-condition__glue {
+      flex: 1;
+    }
+
+    .mat-mdc-form-field,
+    .br-condition__lookup {
+      order: 1;
+      flex: 1 1 100%;
+      width: auto;
+    }
+  }
+}
+
+.br-audience {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  align-items: start;
+  padding-top: 6px;
+
+  .mat-mdc-checkbox {
+    margin-top: 8px;
+  }
+}
+
+.br-step-editor {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--cl-radius-md, 12px);
+  background: var(--mat-sys-surface-container-low);
+}
+
+.br-step-editor__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+
+  .mat-mdc-form-field {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // Phones: the number and the tools on one row, the name on a full row below.
+  @media (max-width: 600px) {
+    .mat-mdc-form-field {
+      order: 1;
+      flex-basis: 100%;
+    }
+  }
+}
+
+.br-step-editor__tools {
+  display: flex;
+  margin-left: auto;
+}
+
+.br-step-editor__number {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font-weight: 700;
+}
+
+.br-step-editor__options {
+  margin-top: 12px;
+  align-items: center;
+}
+
+.br-step-editor .br-form-section {
+  margin: 12px 0 8px;
+}
+
+.br-placeholders {
+  margin-top: 8px;
+
+  button.cl-chip {
+    cursor: pointer;
+    border: none;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+}
+
+.br-pager {
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.br-job-company {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.br-error-text {
+  color: var(--mat-sys-error);
+}
+
+.br-approvals-card {
+  border-left: 4px solid var(--mat-sys-tertiary);
+}

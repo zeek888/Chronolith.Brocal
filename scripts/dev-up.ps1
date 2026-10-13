@@ -28,7 +28,10 @@ $root = Split-Path -Parent $PSScriptRoot
 
 if ($Standalone) {
   Write-Host '1/2 Keycloak (realm brocal) y PostgreSQL de Brocal...'
-  docker compose -f (Join-Path $root 'docker-compose.standalone.yml') up -d brocal-keycloak brocal-db
+  # Variables propias del modo independiente: el .env de la carpeta es del modo módulo.
+  $envFile = Join-Path $root 'standalone.env'
+  if (-not (Test-Path $envFile)) { $envFile = Join-Path $root '.env.standalone.example' }
+  docker compose -f (Join-Path $root 'docker-compose.standalone.yml') --env-file $envFile up -d brocal-keycloak brocal-db
   if ($LASTEXITCODE -ne 0) { throw 'No se pudieron levantar brocal-keycloak y brocal-db.' }
   $launchProfile = 'standalone'
 } else {

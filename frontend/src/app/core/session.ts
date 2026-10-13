@@ -138,6 +138,9 @@ export function requires(...anyOf: string[]): CanActivateFn {
 /** Platform administrators only (companies, quotas, modules). */
 export const platformAdminOnly: CanActivateFn = (route) => (inject(BrocalSession).isPlatformAdmin() ? true : inject(BrocalNav).home(route));
 
+/** Staff of the company (customer portal users go back to the home page). */
+export const staffOnly: CanActivateFn = (route) => (!inject(BrocalSession).isPortalUser() ? true : inject(BrocalNav).home(route));
+
 /** Shows the content when the user has any of the permissions: `*brCan="[p.ticketsCapture]"`. */
 @Directive({ selector: '[brCan]' })
 export class CanDirective {

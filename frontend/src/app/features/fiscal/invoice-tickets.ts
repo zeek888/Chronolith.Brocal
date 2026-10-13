@@ -13,7 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { BrocalApi } from '../../core/api';
 import { DatePipe, MoneyPipe } from '../../core/format';
 import { I18n, TPipe } from '../../core/i18n';
-import { InvoiceableTicket, Lookup } from '../../core/models';
+import { InvoiceDetail, InvoiceableTicket, Lookup } from '../../core/models';
 import { BrocalNav } from '../../core/nav';
 import { apiResource } from '../../core/resource';
 import { Dialogs } from '../../shared/dialogs';
@@ -52,9 +52,16 @@ import { CFDI_USES, PAYMENT_FORMS, PAYMENT_METHODS } from '../catalogs/catalog-c
           <table class="br-table">
             <tbody>
               @for (t of group.tickets; track t.id) {
-                <tr [class.br-row-muted]="t.inDraft">
-                  <td style="width: 1%"><mat-checkbox [checked]="selected().has(t.id)" [disabled]="t.inDraft || (!!selectedCustomer() && selectedCustomer() !== t.customerId)" (change)="toggle(t, $event.checked)" /></td>
-                  <td><a class="cl-row-link" [routerLink]="nav.to('boletas', t.id)">{{ t.folio }}</a>@if (t.inDraft) {<div class="br-sub">{{ 'invoices.inDraft' | t }}</div>}</td>
+                <tr [class.br-row-muted]="t.inDraft || !!t.held">
+                  <td style="width: 1%"><mat-checkbox [checked]="selected().has(t.id)" [disabled]="t.inDraft || !!t.held || (!!selectedCustomer() && selectedCustomer() !== t.customerId)" (change)="toggle(t, $event.checked)" /></td>
+                  <td>
+                    <a class="cl-row-link" [routerLink]="nav.to('boletas', t.id)">{{ t.folio }}</a>
+                    @if (t.inDraft) {
+                      <div class="br-sub">{{ 'invoices.inDraft' | t }}</div>
+                    } @else if (t.held) {
+                      <div class="br-sub">{{ (t.held === 'pending' ? 'invoices.heldPending' : 'invoices.heldRejected') | t }}</div>
+                    }
+                  </td>
                   <td>{{ t.serviceDate | d }}</td>
                   <td class="br-wide">{{ t.siteName }}</td>
                   <td><br-status enum="ticketStatus" [value]="t.status" /></td>
@@ -187,7 +194,7 @@ export class InvoiceTicketsPage {
   }
 
   protected allSelected(tickets: InvoiceableTicket[]): boolean {
-    const available = tickets.filter((t) => !t.inDraft);
+    const available = tickets.filter((t) => !t.inDraft && !t.held);
     return available.length > 0 && available.every((t) => this.selected().has(t.id));
   }
 
@@ -196,7 +203,7 @@ export class InvoiceTicketsPage {
   }
 
   protected toggleGroup(tickets: InvoiceableTicket[], checked: boolean): void {
-    const available = tickets.filter((t) => !t.inDraft);
+    const available = tickets.filter((t) => !t.inDraft && !t.held);
     this.selected.set(checked ? new Set(available.map((t) => t.id)) : new Set());
   }
 
@@ -215,7 +222,14 @@ export class InvoiceTicketsPage {
           stamp: this.stamp.value,
         }),
       );
-      this.dialogs.success(this.i18n.t(this.stamp.value ? 'invoices.stamped' : 'invoices.draftCreated'));
+      // An approval workflow of the company can hold the stamp: the draft stays with its request.
+      const invoice = this.stamp.value ? await firstValueFrom(this.api.get<InvoiceDetail>(`invoices/${result.id}`)) : null;
+      if (invoice?.summary.status === 'draft') {
+        this.dialogs.info(this.i18n.t('invoices.stampHeld'));
+      } else {
+        this.dialogs.success(this.i18n.t(this.stamp.value ? 'invoices.stamped' : 'invoices.draftCreated'));
+      }
+
       await this.nav.navigate(['facturacion/facturas', result.id]);
     } catch {
       this.busy.set(false);

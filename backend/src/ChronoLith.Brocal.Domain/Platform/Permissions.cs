@@ -91,6 +91,9 @@ public static class Permissions
 
     public const string IntegrationsManage = "integrations.manage";
     public const string IntegrationsExport = "integrations.export";
+
+    public const string AutomationRead = "automation.read";
+    public const string AutomationManage = "automation.manage";
 }
 
 /// <summary>
@@ -121,7 +124,7 @@ public static class RoleTemplates
             Permissions.MaintenanceRead, Permissions.PermitsRead, Permissions.FuelRead, Permissions.InventoryRead,
             Permissions.PersonnelRead, Permissions.HseRead, Permissions.CrewsRead, Permissions.ExpensesRead,
             Permissions.InvoicingRead, Permissions.CartaPorteRead, Permissions.CollectionsRead, Permissions.QuotesRead,
-            Permissions.AuditRead, Permissions.IntegrationsExport
+            Permissions.AuditRead, Permissions.IntegrationsExport, Permissions.AutomationRead
         ]),
         new("office", "Oficina", "Catálogos, tarifas, programación de órdenes, validación de boletas y cotizaciones.",
         [

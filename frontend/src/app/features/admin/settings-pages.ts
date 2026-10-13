@@ -14,14 +14,16 @@ import { API } from '../../core/config';
 import { DateTimePipe, firstOfMonth, today } from '../../core/format';
 import { EnumPipe, I18n, TPipe } from '../../core/i18n';
 import { AccountingSettings, ApiKeyInfo, ChannelSettings, CreatedApiKey, ExportDataset, NotificationRule, OutboxMessage, PagedResult, Role } from '../../core/models';
+import { P } from '../../core/permissions';
 import { apiResource } from '../../core/resource';
+import { BrocalSession } from '../../core/session';
 import { EntityForm } from '../../shared/crud/entity-form';
 import { FieldDef, buildForm, readForm } from '../../shared/crud/fields';
 import { actionContext } from '../../shared/crud/list-page';
 import { Dialogs } from '../../shared/dialogs';
 import { PageHeader, StatusChip } from '../../shared/ui';
 
-const EXPIRY_EVENTS = new Set(['permitExpiring', 'documentExpiring', 'maintenanceDue', 'invoiceOverdue', 'uninvoicedTickets']);
+const EXPIRY_EVENTS = new Set(['permitExpiring', 'documentExpiring', 'contractExpiring', 'maintenanceDue', 'invoiceOverdue', 'uninvoicedTickets']);
 
 const CHANNEL_FIELDS: FieldDef[] = [
   { key: 'email', label: 'notifications.emailSection', type: 'section' },
@@ -310,7 +312,15 @@ const ACCOUNTING_FIELDS: FieldDef[] = [
           </div>
         </mat-tab>
         <mat-tab [label]="'integrations.tabs.accounting' | t">
-          @if (accountingForm(); as form) {
+          @if (!canManage()) {
+            <!-- Export only: the vouchers use the accounts the administrator configured. -->
+            <section class="br-card br-tabs-body">
+              <p class="cl-muted">{{ 'integrations.accountingExportHint' | t }}</p>
+              <div class="br-actions">
+                <button mat-flat-button type="button" (click)="exportAccounting()"><mat-icon>download</mat-icon>{{ 'integrations.exportVouchers' | t }}</button>
+              </div>
+            </section>
+          } @else if (accountingForm(); as form) {
             <section class="br-card br-tabs-body">
               <p class="cl-muted">{{ 'integrations.accountingHint' | t }}</p>
               <br-entity-form [fields]="accountingFields" [form]="form" />
@@ -322,6 +332,7 @@ const ACCOUNTING_FIELDS: FieldDef[] = [
             </section>
           }
         </mat-tab>
+        @if (canManage()) {
         <mat-tab [label]="'integrations.tabs.apiKeys' | t">
           <section class="br-card br-tabs-body">
             <div class="br-card__header">
@@ -360,6 +371,7 @@ Content-Type: application/json
 GET {{ apiUrl }}/integrations/feeds/exports/invoices?from=2026-10-01               (export.read)</pre>
           </section>
         </mat-tab>
+        }
       </mat-tab-group>
     </div>
   `,
@@ -372,6 +384,7 @@ GET {{ apiUrl }}/integrations/feeds/exports/invoices?from=2026-10-01            
 })
 export class IntegrationsPage {
   private readonly api = inject(BrocalApi);
+  private readonly session = inject(BrocalSession);
   private readonly dialogs = inject(Dialogs);
   private readonly i18n = inject(I18n);
   private readonly injector = inject(Injector);
@@ -387,9 +400,18 @@ export class IntegrationsPage {
   protected to = today();
   protected readonly busy = signal(false);
 
+  /** Exporting only needs `integrations.export`; API keys and the accounting accounts need `integrations.manage`. */
+  protected readonly canManage = computed(() => this.session.can(P.integrationsManage));
+
   protected readonly datasets = apiResource({ stream: () => this.api.get<ExportDataset[]>('integrations/exports') });
-  protected readonly keys = apiResource({ stream: () => this.api.get<ApiKeyInfo[]>('integrations/api-keys') });
-  private readonly accounting = apiResource({ stream: () => this.api.get<AccountingSettings>('integrations/accounting') });
+  protected readonly keys = apiResource({
+    params: () => (this.canManage() ? true : undefined),
+    stream: () => this.api.get<ApiKeyInfo[]>('integrations/api-keys'),
+  });
+  private readonly accounting = apiResource({
+    params: () => (this.canManage() ? true : undefined),
+    stream: () => this.api.get<AccountingSettings>('integrations/accounting'),
+  });
   protected readonly accountingForm = computed(() => {
     const a = this.accounting.value();
     return a ? buildForm(ACCOUNTING_FIELDS, a as unknown as Record<string, unknown>) : null;

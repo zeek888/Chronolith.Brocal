@@ -2,6 +2,7 @@ using System.Reflection;
 using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Commercial;
 using ChronoLith.Brocal.Domain.Compliance;
 using ChronoLith.Brocal.Domain.Fiscal;
@@ -59,6 +60,16 @@ public sealed class BrocalDbContext(
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
     public DbSet<AccountingSettings> AccountingSettings => Set<AccountingSettings>();
+
+    public DbSet<ScheduledJobRun> ScheduledJobRuns => Set<ScheduledJobRun>();
+
+    public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
+
+    public DbSet<WorkflowInstance> WorkflowInstances => Set<WorkflowInstance>();
+
+    public DbSet<BusinessRule> BusinessRules => Set<BusinessRule>();
+
+    public DbSet<AutomationOptOut> AutomationOptOuts => Set<AutomationOptOut>();
 
     public DbSet<Customer> Customers => Set<Customer>();
 

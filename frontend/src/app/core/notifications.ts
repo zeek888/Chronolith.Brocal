@@ -22,6 +22,9 @@ export class InboxService {
   readonly unread = signal(0);
   readonly hasUnread = computed(() => this.unread() > 0);
 
+  /** Approval requests waiting for the user (menu badge and home page). */
+  readonly pendingApprovals = signal(0);
+
   start(): void {
     void this.refresh();
     this.timer ??= setInterval(() => void this.refresh(), 90_000);
@@ -40,9 +43,13 @@ export class InboxService {
     }
 
     try {
-      const inbox = await firstValueFrom(this.api.get<MyNotifications>('me/notifications', { take: 20 }));
+      const [inbox, approvals] = await Promise.all([
+        firstValueFrom(this.api.get<MyNotifications>('me/notifications', { take: 20 })),
+        firstValueFrom(this.api.get<number>('automation/approvals/count')).catch(() => 0),
+      ]);
       this.items.set(inbox.items);
       this.unread.set(inbox.unread);
+      this.pendingApprovals.set(approvals);
     } catch {
       // Ignored: the inbox is refreshed again in a while.
     }

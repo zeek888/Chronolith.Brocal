@@ -161,6 +161,7 @@ export const MAINTENANCE_ORDER_RECORD: RecordConfig = {
     return `${o.summary.unitCode} · ${o.summary.unitName}${o.downtimeHours ? ` · ${Math.round(o.downtimeHours)} h fuera de servicio` : ''}`;
   },
   status: { enum: 'maintenanceOrderStatus', value: (r) => (r['summary'] as MaintenanceOrderSummary).status },
+  workflow: 'maintenanceOrder',
   warnings: (r) => ((r['cancellationReason'] as string | null) ? [`Cancelada: ${r['cancellationReason'] as string}`] : []),
   actions: [
     {

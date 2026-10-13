@@ -49,10 +49,23 @@ public static class DependencyInjection
         services.AddScoped<TicketClosing>();
         services.AddScoped<Features.Dispatch.DispatchConflicts>();
         services.AddScoped<Features.Dispatch.WorkOrderNotifier>();
+        services.AddScoped<Features.Dispatch.WorkOrderAutomation>();
         services.AddScoped<Features.Inventory.RegisterMovementCommandHandler>();
         services.AddScoped<Features.Invoicing.InvoiceStamping>();
+        services.AddScoped<Features.Invoicing.InvoiceAuthorization>();
         services.AddScoped<Features.Invoicing.InvoicePdfService>();
         services.AddScoped<Features.Integrations.IApiKeyAuthenticator, Features.Integrations.ApiKeyAuthenticator>();
+
+        // Workflows and business rules.
+        services.AddScoped<Features.Automation.AudienceResolver>();
+        services.AddScoped<Features.Automation.AutomationDefinitions>();
+        services.AddScoped<Features.Automation.AutomationAuthority>();
+        services.AddScoped<Features.Automation.DocumentFacts>();
+        services.AddScoped<Features.Automation.DocumentLoader>();
+        services.AddScoped<Features.Automation.ApprovalViews>();
+        services.AddScoped<Features.Automation.WorkflowReminders>();
+        services.AddScoped<Features.Automation.IWorkflowEngine, Features.Automation.WorkflowEngine>();
+        services.AddScoped<Features.Automation.IBusinessRules, Features.Automation.BusinessRuleEngine>();
 
         return services;
     }

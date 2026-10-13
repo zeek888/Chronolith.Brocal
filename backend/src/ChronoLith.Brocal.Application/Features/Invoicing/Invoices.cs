@@ -2,7 +2,9 @@ using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.Automation;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Commercial;
 using ChronoLith.Brocal.Domain.Fiscal;
 using ChronoLith.Brocal.Domain.Operations;
@@ -113,7 +115,8 @@ internal sealed class CreateInvoiceFromTicketsCommandHandler(
     IApplicationDbContext db,
     ITenantContext tenant,
     ITenantClock clock,
-    InvoiceStamping stamping) : ICommandHandler<CreateInvoiceFromTicketsCommand, Guid>
+    InvoiceStamping stamping,
+    InvoiceAuthorization authorization) : ICommandHandler<CreateInvoiceFromTicketsCommand, Guid>
 {
     public async Task<Result<Guid>> Handle(CreateInvoiceFromTicketsCommand command, CancellationToken cancellationToken)
     {
@@ -143,6 +146,12 @@ internal sealed class CreateInvoiceFromTicketsCommandHandler(
                 {
                     return Result.Failure<Guid>(Error.Conflict(check.Error.Code, $"{ticket.Folio}: {check.Error.Description}"));
                 }
+            }
+
+            var released = await authorization.EnsureTicketsReleasedAsync(tickets, ct);
+            if (released.IsFailure)
+            {
+                return Result.Failure<Guid>(released.Error);
             }
 
             var drafts = await db.Invoices.AsNoTracking().Where(i => i.Status == InvoiceStatus.Draft).Select(i => i.TicketIds).ToListAsync(ct);
@@ -185,10 +194,20 @@ internal sealed class CreateInvoiceFromTicketsCommandHandler(
             db.Invoices.Add(created.Value);
             if (command.Stamp)
             {
-                var stamped = await stamping.StampAsync(created.Value, null, ct);
-                if (stamped.IsFailure)
+                // With an approval workflow the draft stays and its request is registered with it.
+                var authorized = await authorization.CheckAsync(created.Value, GatePersistence.CurrentUnitOfWork, ct);
+                if (authorized.IsFailure)
                 {
-                    return Result.Failure<Guid>(stamped.Error);
+                    return Result.Failure<Guid>(authorized.Error);
+                }
+
+                if (authorized.Value.Passed)
+                {
+                    var stamped = await stamping.StampAsync(created.Value, null, ct);
+                    if (stamped.IsFailure)
+                    {
+                        return Result.Failure<Guid>(stamped.Error);
+                    }
                 }
             }
 
@@ -265,7 +284,7 @@ internal sealed class SaveInvoiceDraftCommandHandler(IApplicationDbContext db, I
 
 public sealed record StampInvoiceCommand(Guid Id) : ICommand<Guid>;
 
-internal sealed class StampInvoiceCommandHandler(IApplicationDbContext db, InvoiceStamping stamping) : ICommandHandler<StampInvoiceCommand, Guid>
+internal sealed class StampInvoiceCommandHandler(IApplicationDbContext db, InvoiceStamping stamping, InvoiceAuthorization authorization) : ICommandHandler<StampInvoiceCommand, Guid>
 {
     public async Task<Result<Guid>> Handle(StampInvoiceCommand command, CancellationToken cancellationToken) =>
         await db.ExecuteInTransactionAsync(async ct =>
@@ -274,6 +293,18 @@ internal sealed class StampInvoiceCommandHandler(IApplicationDbContext db, Invoi
             if (invoice is null)
             {
                 return Result.Failure<Guid>(InvoiceErrors.NotFound);
+            }
+
+            // Held by an approval workflow: the request is saved on its own and the API answers 202.
+            var authorized = await authorization.CheckAsync(invoice, GatePersistence.Isolated, ct);
+            if (authorized.IsFailure)
+            {
+                return Result.Failure<Guid>(authorized.Error);
+            }
+
+            if (!authorized.Value.Passed)
+            {
+                return Result.Failure<Guid>(authorized.Value.ToError());
             }
 
             var stamped = await stamping.StampAsync(invoice, null, ct);
@@ -289,7 +320,7 @@ internal sealed class StampInvoiceCommandHandler(IApplicationDbContext db, Invoi
 
 public sealed record DeleteInvoiceDraftCommand(Guid Id) : ICommand;
 
-internal sealed class DeleteInvoiceDraftCommandHandler(IApplicationDbContext db) : ICommandHandler<DeleteInvoiceDraftCommand>
+internal sealed class DeleteInvoiceDraftCommandHandler(IApplicationDbContext db, IWorkflowEngine workflows) : ICommandHandler<DeleteInvoiceDraftCommand>
 {
     public async Task<Result> Handle(DeleteInvoiceDraftCommand command, CancellationToken cancellationToken)
     {
@@ -305,6 +336,7 @@ internal sealed class DeleteInvoiceDraftCommandHandler(IApplicationDbContext db)
         }
 
         db.Invoices.Remove(invoice);
+        await workflows.CancelPendingAsync(AutomationDocument.Invoice, invoice.Id, "Se eliminó el borrador de la factura.", cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return Result.Success();
     }
@@ -390,9 +422,11 @@ internal sealed class GetInvoiceFileQueryHandler(IApplicationDbContext db, ITena
 /// <summary>Tickets ready to invoice (signed or approved) grouped by customer: the "one click" list.</summary>
 public sealed record GetInvoiceableTicketsQuery(Guid? CustomerId) : IQuery<IReadOnlyList<InvoiceableTicketDto>>;
 
-public sealed record InvoiceableTicketDto(Guid Id, string Folio, DateOnly ServiceDate, Guid CustomerId, string? CustomerName, string? SiteName, TicketStatus Status, decimal Subtotal, decimal Total, bool InDraft);
+/// <summary><see cref="Held"/>: "pending" or "rejected" when the validation workflow of the ticket keeps it from being invoiced.</summary>
+public sealed record InvoiceableTicketDto(Guid Id, string Folio, DateOnly ServiceDate, Guid CustomerId, string? CustomerName, string? SiteName, TicketStatus Status, decimal Subtotal, decimal Total, bool InDraft,
+    string? Held = null);
 
-internal sealed class GetInvoiceableTicketsQueryHandler(IApplicationDbContext db, ITenantContext tenant) : IQueryHandler<GetInvoiceableTicketsQuery, IReadOnlyList<InvoiceableTicketDto>>
+internal sealed class GetInvoiceableTicketsQueryHandler(IApplicationDbContext db, ITenantContext tenant, IWorkflowEngine workflows) : IQueryHandler<GetInvoiceableTicketsQuery, IReadOnlyList<InvoiceableTicketDto>>
 {
     public async Task<Result<IReadOnlyList<InvoiceableTicketDto>>> Handle(GetInvoiceableTicketsQuery query, CancellationToken cancellationToken)
     {
@@ -407,6 +441,16 @@ internal sealed class GetInvoiceableTicketsQueryHandler(IApplicationDbContext db
                 db.Sites.Where(s => s.Id == t.SiteId).Select(s => s.Name).FirstOrDefault(), t.Status, t.Subtotal, t.Total, false))
             .ToListAsync(cancellationToken);
 
-        return tickets.Select(t => t with { InDraft = drafts.Contains(t.Id) }).ToList();
+        var held = await workflows.LatestStatusesAsync(AutomationDocument.ServiceTicket, tickets.Select(t => t.Id).ToList(), cancellationToken);
+        return tickets.Select(t => t with
+        {
+            InDraft = drafts.Contains(t.Id),
+            Held = held.GetValueOrDefault(t.Id, WorkflowStatus.Approved) switch
+            {
+                WorkflowStatus.Pending => "pending",
+                WorkflowStatus.Rejected when t.Status == TicketStatus.Signed => "rejected",
+                _ => null
+            }
+        }).ToList();
     }
 }

@@ -34,7 +34,7 @@ public sealed record ModuleDefinition(
     IReadOnlyList<string> DependsOn,
     IReadOnlyList<PermissionDefinition> Permissions);
 
-/// <summary>Catalog of the 24 Brocal modules (plus the core master data) and their permissions.</summary>
+/// <summary>Catalog of the 24 Brocal modules (plus the core master data and the workflows and rules) and their permissions.</summary>
 public static class BrocalModules
 {
     public const string Catalogs = "catalogs";
@@ -62,6 +62,7 @@ public static class BrocalModules
     public const string Audit = "audit";
     public const string Notifications = "notifications";
     public const string Integrations = "integrations";
+    public const string Automation = "automation";
 
     public static readonly IReadOnlyList<ModuleDefinition> All =
     [
@@ -275,6 +276,16 @@ public static class BrocalModules
             [
                 P(Permissions.IntegrationsManage, "Administrar integraciones y llaves de API", "Manage integrations and API keys"),
                 P(Permissions.IntegrationsExport, "Exportar información", "Export data")
+            ]),
+        new(Automation, 25, ModuleCategory.Platform, "Flujos y reglas de negocio", "Workflows and business rules",
+            "Flujos de autorización por pasos y reglas que bloquean o avisan, por empresa o globales para todas.",
+            "Step-by-step approval workflows and rules that block or notify, per company or global for all of them.",
+            "account_tree", IsCore: true, [],
+            [
+                P(Permissions.AutomationRead, "Consultar flujos, reglas y autorizaciones", "View workflows, rules and approvals",
+                    "Incluye el historial de todas las solicitudes de autorización de la empresa.", "Includes the history of every approval request of the company."),
+                P(Permissions.AutomationManage, "Configurar flujos y reglas de la empresa", "Configure the company's workflows and rules",
+                    "Las definiciones globales solo las administra la plataforma.", "Global definitions are managed by the platform only.")
             ])
     ];
 

@@ -11,6 +11,10 @@ export interface MenuItem {
   module?: string;
   /** Only for platform administrators. */
   platformAdmin?: boolean;
+  /** Staff of the company (hidden to customer portal users). */
+  staffOnly?: boolean;
+  /** Shows the number of approval requests waiting for the user. */
+  approvalsBadge?: boolean;
 }
 
 export interface MenuGroup {
@@ -26,6 +30,7 @@ export const MENU: MenuGroup[] = [
     icon: 'receipt_long',
     items: [
       { key: 'home', icon: 'space_dashboard', path: 'inicio', permissions: [] },
+      { key: 'approvals', icon: 'approval', path: 'autorizaciones', permissions: [], staffOnly: true, approvalsBadge: true },
       { key: 'tickets', icon: 'receipt_long', path: 'boletas', permissions: [P.ticketsRead, P.ticketsReadOwn, P.portalAccess], module: 'tickets' },
       { key: 'workOrders', icon: 'event_note', path: 'ordenes', permissions: [P.dispatchRead, P.dispatchReadOwn], module: 'dispatch' },
       { key: 'dispatchBoard', icon: 'view_timeline', path: 'ordenes/programacion', permissions: [P.dispatchRead, P.dispatchManage], module: 'dispatch' },
@@ -110,8 +115,11 @@ export const MENU: MenuGroup[] = [
       { key: 'roles', icon: 'admin_panel_settings', path: 'configuracion/roles', permissions: [P.accessRoles] },
       { key: 'notificationSettings', icon: 'notifications_active', path: 'configuracion/notificaciones', permissions: [P.notificationsManage], module: 'notifications' },
       { key: 'integrations', icon: 'hub', path: 'configuracion/integraciones', permissions: [P.integrationsManage, P.integrationsExport], module: 'integrations' },
+      { key: 'workflows', icon: 'account_tree', path: 'configuracion/flujos', permissions: [P.automationRead, P.automationManage] },
+      { key: 'businessRules', icon: 'rule_settings', path: 'configuracion/reglas', permissions: [P.automationRead, P.automationManage] },
       { key: 'audit', icon: 'history', path: 'configuracion/bitacora', permissions: [P.auditRead] },
       { key: 'tenants', icon: 'domain_add', path: 'plataforma/empresas', permissions: [], platformAdmin: true },
+      { key: 'scheduledJobs', icon: 'schedule', path: 'plataforma/tareas', permissions: [], platformAdmin: true },
     ],
   },
 ];

@@ -1,7 +1,9 @@
-﻿using ChronoLith.Brocal.Application.Abstractions;
+using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
+using ChronoLith.Brocal.Application.Features.Automation;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Common;
 using ChronoLith.Brocal.Domain.Operations;
 using ChronoLith.Brocal.Domain.Platform;
@@ -81,7 +83,9 @@ internal sealed class SignTicketCommandHandler(
     IApplicationDbContext db,
     ITenantContext tenant,
     ITenantClock clock,
-    TicketClosing closing) : ICommandHandler<SignTicketCommand, TicketDetailDto>
+    TicketClosing closing,
+    DocumentFacts documentFacts,
+    IBusinessRules rules) : ICommandHandler<SignTicketCommand, TicketDetailDto>
 {
     public async Task<Result<TicketDetailDto>> Handle(SignTicketCommand command, CancellationToken cancellationToken)
     {
@@ -105,20 +109,28 @@ internal sealed class SignTicketCommandHandler(
             return result.Error;
         }
 
+        var facts = await documentFacts.TicketAsync(ticket, cancellationToken);
+        var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.ServiceTicket, ticket.Id, ticket.Folio, facts), AutomationTrigger.Close, cancellationToken);
+        if (checks.IsFailure)
+        {
+            return checks.Error;
+        }
+
         signature.AttachTo(nameof(ServiceTicket), ticket.Id);
-        return await closing.CompleteAsync(ticket, cancellationToken);
+        return await closing.CompleteAsync(ticket, facts, cancellationToken);
     }
 }
 
-/// <summary>What happens once a ticket is closed: branded PDF, audit entry and notifications.</summary>
+/// <summary>What happens once a ticket is closed: branded PDF, audit entry, notifications and its validation workflow.</summary>
 internal sealed class TicketClosing(
     IApplicationDbContext db,
     IFileService files,
     TicketPdfService pdf,
     INotificationPublisher notifications,
-    IAuditLog audit)
+    IAuditLog audit,
+    IWorkflowEngine workflows)
 {
-    public async Task<Result<TicketDetailDto>> CompleteAsync(ServiceTicket ticket, CancellationToken cancellationToken)
+    public async Task<Result<TicketDetailDto>> CompleteAsync(ServiceTicket ticket, IReadOnlyDictionary<string, object?> facts, CancellationToken cancellationToken)
     {
         var document = await pdf.GenerateAsync(ticket, cancellationToken);
         if (document.IsSuccess)
@@ -131,11 +143,14 @@ internal sealed class TicketClosing(
             NotificationEvent.TicketSigned,
             NotificationSeverity.Success,
             $"Boleta {ticket.Folio} firmada",
-            $"La boleta {ticket.Folio} del {ticket.ServiceDate:dd/MM/yyyy} se cerrÃ³ por {ticket.Total:N2} {ticket.Currency}" +
+            $"La boleta {ticket.Folio} del {ticket.ServiceDate:dd/MM/yyyy} se cerró por {ticket.Total:N2} {ticket.Currency}" +
             (ticket.SignerName is null ? "." : $" con la firma de {ticket.SignerName}."),
             $"boletas/{ticket.Id}",
             CustomerId: ticket.CustomerId,
             AttachmentFileId: ticket.PdfFileId), cancellationToken);
+
+        // Validation workflow of the company (if any applies): the ticket is validated when its last step approves.
+        await workflows.StartAsync(new WorkflowSubject(AutomationDocument.ServiceTicket, ticket.Id, ticket.Folio, facts), cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
         return await TicketDetails.BuildAsync(db, files, ticket, cancellationToken);
@@ -145,8 +160,13 @@ internal sealed class TicketClosing(
 /// <summary>Closes a ticket that does not require the customer's signature.</summary>
 public sealed record CloseTicketCommand(Guid TicketId) : ICommand<TicketDetailDto>;
 
-internal sealed class CloseTicketCommandHandler(IApplicationDbContext db, ITenantContext tenant, ITenantClock clock, TicketClosing closing)
-    : ICommandHandler<CloseTicketCommand, TicketDetailDto>
+internal sealed class CloseTicketCommandHandler(
+    IApplicationDbContext db,
+    ITenantContext tenant,
+    ITenantClock clock,
+    TicketClosing closing,
+    DocumentFacts documentFacts,
+    IBusinessRules rules) : ICommandHandler<CloseTicketCommand, TicketDetailDto>
 {
     public async Task<Result<TicketDetailDto>> Handle(CloseTicketCommand command, CancellationToken cancellationToken)
     {
@@ -159,7 +179,14 @@ internal sealed class CloseTicketCommandHandler(IApplicationDbContext db, ITenan
         var type = await db.ServiceTypes.AsNoTracking().FirstAsync(t => t.Id == ticket.ServiceTypeId, cancellationToken);
         var settings = tenant.Tenant.Settings;
         var result = ticket.CloseWithoutSignature(type, settings.MinTicketPhotos, settings.RequireCustomerSignature, clock.UtcNow);
-        return result.IsFailure ? result.Error : await closing.CompleteAsync(ticket, cancellationToken);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        var facts = await documentFacts.TicketAsync(ticket, cancellationToken);
+        var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.ServiceTicket, ticket.Id, ticket.Folio, facts), AutomationTrigger.Close, cancellationToken);
+        return checks.IsFailure ? checks.Error : await closing.CompleteAsync(ticket, facts, cancellationToken);
     }
 }
 
@@ -167,27 +194,51 @@ internal sealed class CloseTicketCommandHandler(IApplicationDbContext db, ITenan
 
 public sealed record ApproveTicketsCommand(IReadOnlyList<Guid> TicketIds) : ICommand<int>;
 
-internal sealed class ApproveTicketsCommandHandler(IApplicationDbContext db, IUserContext user, ITenantClock clock, IAuditLog audit)
-    : ICommandHandler<ApproveTicketsCommand, int>
+internal sealed class ApproveTicketsCommandHandler(
+    IApplicationDbContext db,
+    IUserContext user,
+    ITenantClock clock,
+    IAuditLog audit,
+    IWorkflowEngine workflows,
+    DocumentFacts documentFacts,
+    IBusinessRules rules) : ICommandHandler<ApproveTicketsCommand, int>
 {
     public async Task<Result<int>> Handle(ApproveTicketsCommand command, CancellationToken cancellationToken)
     {
         var ids = command.TicketIds.Distinct().ToList();
-        var tickets = await db.Tickets.Where(t => ids.Contains(t.Id)).ToListAsync(cancellationToken);
+        var tickets = await db.Tickets.Include(t => t.Lines).Include(t => t.Photos).Where(t => ids.Contains(t.Id)).ToListAsync(cancellationToken);
         if (tickets.Count != ids.Count)
         {
             return TicketErrors.NotFound;
         }
 
+        // Tickets under a validation workflow are validated by its approvers.
+        var workflowStatuses = await workflows.LatestStatusesAsync(AutomationDocument.ServiceTicket, ids, cancellationToken);
         foreach (var ticket in tickets)
         {
+            switch (workflowStatuses.GetValueOrDefault(ticket.Id, WorkflowStatus.Cancelled))
+            {
+                case WorkflowStatus.Pending:
+                    var pending = await workflows.PendingAsync(AutomationDocument.ServiceTicket, ticket.Id, cancellationToken);
+                    return WorkflowErrors.InProgress(ticket.Folio, pending?.Step?.Name ?? string.Empty);
+                case WorkflowStatus.Rejected when ticket.Status == TicketStatus.Signed:
+                    return WorkflowErrors.Rejected(ticket.Folio);
+            }
+
+            var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.ServiceTicket, ticket.Id, ticket.Folio, await documentFacts.TicketAsync(ticket, cancellationToken)),
+                AutomationTrigger.Approve, cancellationToken);
+            if (checks.IsFailure)
+            {
+                return Error.Failure(checks.Error.Code, $"{ticket.Folio}: {checks.Error.Description}");
+            }
+
             var result = ticket.Approve(user.DisplayName, clock.UtcNow);
             if (result.IsFailure)
             {
                 return Error.Conflict(result.Error.Code, $"{ticket.Folio}: {result.Error.Description}");
             }
 
-            audit.Record(AuditAction.StatusChanged, nameof(ServiceTicket), ticket.Id, $"{ticket.Folio} â†’ validada");
+            audit.Record(AuditAction.StatusChanged, nameof(ServiceTicket), ticket.Id, $"{ticket.Folio} → validada");
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -197,7 +248,7 @@ internal sealed class ApproveTicketsCommandHandler(IApplicationDbContext db, IUs
 
 public sealed record CancelTicketCommand(Guid TicketId, string Reason) : ICommand;
 
-internal sealed class CancelTicketCommandHandler(IApplicationDbContext db, ITenantClock clock, IAuditLog audit, INotificationPublisher notifications)
+internal sealed class CancelTicketCommandHandler(IApplicationDbContext db, ITenantClock clock, IAuditLog audit, INotificationPublisher notifications, IWorkflowEngine workflows)
     : ICommandHandler<CancelTicketCommand>
 {
     public async Task<Result> Handle(CancelTicketCommand command, CancellationToken cancellationToken)
@@ -216,6 +267,7 @@ internal sealed class CancelTicketCommandHandler(IApplicationDbContext db, ITena
         }
 
         audit.Record(AuditAction.Cancelled, nameof(ServiceTicket), ticket.Id, ticket.Folio, command.Reason);
+        await workflows.CancelPendingAsync(AutomationDocument.ServiceTicket, ticket.Id, "La boleta se canceló.", cancellationToken);
         if (wasSigned)
         {
             await notifications.PublishAsync(new NotificationMessage(
@@ -234,7 +286,7 @@ internal sealed class CancelTicketCommandHandler(IApplicationDbContext db, ITena
 
 public sealed record ReopenTicketCommand(Guid TicketId, string Reason) : ICommand;
 
-internal sealed class ReopenTicketCommandHandler(IApplicationDbContext db, IAuditLog audit) : ICommandHandler<ReopenTicketCommand>
+internal sealed class ReopenTicketCommandHandler(IApplicationDbContext db, IAuditLog audit, IWorkflowEngine workflows) : ICommandHandler<ReopenTicketCommand>
 {
     public async Task<Result> Handle(ReopenTicketCommand command, CancellationToken cancellationToken)
     {
@@ -251,6 +303,7 @@ internal sealed class ReopenTicketCommandHandler(IApplicationDbContext db, IAudi
         }
 
         audit.Record(AuditAction.Reopened, nameof(ServiceTicket), ticket.Id, ticket.Folio, command.Reason);
+        await workflows.CancelPendingAsync(AutomationDocument.ServiceTicket, ticket.Id, "La boleta se reabrió para corregirla.", cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return Result.Success();
     }

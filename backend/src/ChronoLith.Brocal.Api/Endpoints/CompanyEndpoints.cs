@@ -58,7 +58,7 @@ internal sealed class CompanyEndpoints : IEndpoint
 
         roles.MapGet("", async (IQueryHandler<GetRolesQuery, IReadOnlyList<RoleDto>> handler, CancellationToken ct) =>
                 (await handler.Handle(new GetRolesQuery(), ct)).ToOk())
-            .RequirePermission(Permissions.AccessRoles, Permissions.AccessUsers, Permissions.NotificationsManage);
+            .RequirePermission(Permissions.AccessRoles, Permissions.AccessUsers, Permissions.NotificationsManage, Permissions.AutomationRead, Permissions.AutomationManage);
 
         roles.MapPost("", async (RoleRequest body, ICommandHandler<SaveRoleCommand, Guid> handler, CancellationToken ct) =>
                 (await handler.Handle(new SaveRoleCommand(null, body.Name, body.Description, body.Permissions), ct)).ToCreated("/api/company/roles"))

@@ -2,9 +2,11 @@ using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.Automation;
 using ChronoLith.Brocal.Application.Features.Pricing;
 using ChronoLith.Brocal.Application.Features.Tickets;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Commercial;
 using ChronoLith.Brocal.Domain.Common;
 using ChronoLith.Brocal.Domain.Compliance;
@@ -220,7 +222,8 @@ internal sealed class SaveWorkOrderCommandHandler(
     IFolioService folios,
     DispatchConflicts conflicts,
     WorkOrderNotifier notifier,
-    ITenantClock clock) : ICommandHandler<SaveWorkOrderCommand, SaveWorkOrderResult>
+    ITenantClock clock,
+    WorkOrderAutomation automation) : ICommandHandler<SaveWorkOrderCommand, SaveWorkOrderResult>
 {
     public async Task<Result<SaveWorkOrderResult>> Handle(SaveWorkOrderCommand command, CancellationToken cancellationToken)
     {
@@ -244,7 +247,13 @@ internal sealed class SaveWorkOrderCommandHandler(
                 return result.Error;
             }
 
-            if (command.Dispatch && order.Status == WorkOrderStatus.Scheduled)
+            var held = await automation.SaveAsync(order, command.Dispatch && order.Status == WorkOrderStatus.Scheduled, cancellationToken);
+            if (held.IsFailure)
+            {
+                return held.Error;
+            }
+
+            if (command.Dispatch && order.Status == WorkOrderStatus.Scheduled && held.Value is null)
             {
                 var dispatched = order.Dispatch(clock.UtcNow);
                 if (dispatched.IsFailure)
@@ -255,7 +264,7 @@ internal sealed class SaveWorkOrderCommandHandler(
 
             await notifier.NotifyIfAssignedAsync(order, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
-            return new SaveWorkOrderResult(order.Id, order.Folio, await conflicts.CheckAsync(order, cancellationToken));
+            return new SaveWorkOrderResult(order.Id, order.Folio, WithHold(held.Value, await conflicts.CheckAsync(order, cancellationToken)));
         }
 
         return await db.ExecuteInTransactionAsync(async ct =>
@@ -268,7 +277,13 @@ internal sealed class SaveWorkOrderCommandHandler(
             }
 
             var order = created.Value;
-            if (command.Dispatch)
+            var held = await automation.SaveAsync(order, command.Dispatch, ct);
+            if (held.IsFailure)
+            {
+                return Result.Failure<SaveWorkOrderResult>(held.Error);
+            }
+
+            if (command.Dispatch && held.Value is null)
             {
                 var dispatched = order.Dispatch(clock.UtcNow);
                 if (dispatched.IsFailure)
@@ -280,8 +295,46 @@ internal sealed class SaveWorkOrderCommandHandler(
             db.WorkOrders.Add(order);
             await notifier.NotifyIfAssignedAsync(order, ct);
             await db.SaveChangesAsync(ct);
-            return Result.Success(new SaveWorkOrderResult(order.Id, order.Folio, await conflicts.CheckAsync(order, ct)));
+            return Result.Success(new SaveWorkOrderResult(order.Id, order.Folio, WithHold(held.Value, await conflicts.CheckAsync(order, ct))));
         }, cancellationToken);
+    }
+
+    /// <summary>The order was saved but its dispatch waits for the approval workflow: the message goes first.</summary>
+    private static IReadOnlyList<string> WithHold(string? held, IReadOnlyList<string> warnings) => held is null ? warnings : [held, .. warnings];
+}
+
+/// <summary>Business rules (moments "save" and "dispatch") and approval workflow of the dispatch of a work order.</summary>
+internal sealed class WorkOrderAutomation(DocumentFacts facts, IBusinessRules rules, IWorkflowEngine workflows)
+{
+    /// <summary>Rules of the saved order and, when it is going to be dispatched, its gate: the message when the dispatch is held.</summary>
+    public async Task<Result<string?>> SaveAsync(WorkOrder order, bool dispatch, CancellationToken cancellationToken)
+    {
+        var values = await facts.WorkOrderAsync(order, cancellationToken);
+        var saved = await rules.EnforceAsync(new RuleSubject(AutomationDocument.WorkOrder, order.Id, order.Folio, values), AutomationTrigger.Save, cancellationToken);
+        if (saved.IsFailure)
+        {
+            return saved.Error;
+        }
+
+        if (!dispatch)
+        {
+            return Result.Success<string?>(null);
+        }
+
+        var gate = await DispatchAsync(order, values, GatePersistence.CurrentUnitOfWork, cancellationToken);
+        return gate.IsFailure ? gate.Error : Result.Success(gate.Value.Passed ? null : gate.Value.Message);
+    }
+
+    public async Task<Result<WorkflowGateResult>> DispatchAsync(WorkOrder order, IReadOnlyDictionary<string, object?>? values, GatePersistence persistence, CancellationToken cancellationToken)
+    {
+        values ??= await facts.WorkOrderAsync(order, cancellationToken);
+        var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.WorkOrder, order.Id, order.Folio, values), AutomationTrigger.Dispatch, cancellationToken);
+        if (checks.IsFailure)
+        {
+            return checks.Error;
+        }
+
+        return await workflows.GateAsync(new WorkflowSubject(AutomationDocument.WorkOrder, order.Id, order.Folio, values), persistence, cancellationToken);
     }
 }
 
@@ -295,8 +348,14 @@ public enum WorkOrderAction
 
 public sealed record ChangeWorkOrderStatusCommand(Guid Id, WorkOrderAction Action, string? Reason) : ICommand;
 
-internal sealed class ChangeWorkOrderStatusCommandHandler(IApplicationDbContext db, ITenantContext tenant, ITenantClock clock, WorkOrderNotifier notifier, IAuditLog audit)
-    : ICommandHandler<ChangeWorkOrderStatusCommand>
+internal sealed class ChangeWorkOrderStatusCommandHandler(
+    IApplicationDbContext db,
+    ITenantContext tenant,
+    ITenantClock clock,
+    WorkOrderNotifier notifier,
+    IAuditLog audit,
+    WorkOrderAutomation automation,
+    IWorkflowEngine workflows) : ICommandHandler<ChangeWorkOrderStatusCommand>
 {
     public async Task<Result> Handle(ChangeWorkOrderStatusCommand command, CancellationToken cancellationToken)
     {
@@ -310,6 +369,21 @@ internal sealed class ChangeWorkOrderStatusCommandHandler(IApplicationDbContext 
         if (command.Action is WorkOrderAction.Dispatch or WorkOrderAction.Cancel && !tenant.Has(Permissions.DispatchManage))
         {
             return Error.Forbidden("WorkOrders.Forbidden", "No tienes permiso para despachar o cancelar órdenes.");
+        }
+
+        // Held by an approval workflow: the request is saved on its own and the API answers 202.
+        if (command.Action == WorkOrderAction.Dispatch && order.Status == WorkOrderStatus.Scheduled)
+        {
+            var gate = await automation.DispatchAsync(order, null, GatePersistence.Isolated, cancellationToken);
+            if (gate.IsFailure)
+            {
+                return gate.Error;
+            }
+
+            if (!gate.Value.Passed)
+            {
+                return gate.Value.ToError();
+            }
         }
 
         var now = clock.UtcNow;
@@ -329,6 +403,11 @@ internal sealed class ChangeWorkOrderStatusCommandHandler(IApplicationDbContext 
         if (command.Action == WorkOrderAction.Dispatch)
         {
             await notifier.NotifyIfAssignedAsync(order, cancellationToken);
+        }
+
+        if (command.Action == WorkOrderAction.Cancel)
+        {
+            await workflows.CancelPendingAsync(AutomationDocument.WorkOrder, order.Id, "La orden se canceló.", cancellationToken);
         }
 
         audit.Record(command.Action == WorkOrderAction.Cancel ? AuditAction.Cancelled : AuditAction.StatusChanged, nameof(WorkOrder), order.Id, $"{order.Folio} → {order.Status}", command.Reason);

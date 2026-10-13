@@ -3,7 +3,9 @@ using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.Automation;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Commercial;
 using ChronoLith.Brocal.Domain.Common;
 using ChronoLith.Brocal.Domain.Operations;
@@ -82,7 +84,7 @@ internal sealed class SaveQuoteCommandValidator : AbstractValidator<SaveQuoteCom
     }
 }
 
-internal sealed class SaveQuoteCommandHandler(IApplicationDbContext db, ITenantContext tenant, IFolioService folios) : ICommandHandler<SaveQuoteCommand, Guid>
+internal sealed class SaveQuoteCommandHandler(IApplicationDbContext db, ITenantContext tenant, IFolioService folios, IBusinessRules rules) : ICommandHandler<SaveQuoteCommand, Guid>
 {
     public async Task<Result<Guid>> Handle(SaveQuoteCommand command, CancellationToken cancellationToken)
     {
@@ -110,6 +112,12 @@ internal sealed class SaveQuoteCommandHandler(IApplicationDbContext db, ITenantC
                 return updated.Error;
             }
 
+            var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.Quote, quote.Id, quote.Folio, DocumentFacts.Quote(quote)), AutomationTrigger.Save, cancellationToken);
+            if (checks.IsFailure)
+            {
+                return checks.Error;
+            }
+
             await db.SaveChangesAsync(cancellationToken);
             return quote.Id;
         }
@@ -121,6 +129,12 @@ internal sealed class SaveQuoteCommandHandler(IApplicationDbContext db, ITenantC
             if (created.IsFailure)
             {
                 return Result.Failure<Guid>(created.Error);
+            }
+
+            var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.Quote, created.Value.Id, created.Value.Folio, DocumentFacts.Quote(created.Value)), AutomationTrigger.Save, ct);
+            if (checks.IsFailure)
+            {
+                return Result.Failure<Guid>(checks.Error);
             }
 
             db.Quotes.Add(created.Value);
@@ -139,14 +153,37 @@ public enum QuoteAction
 
 public sealed record ChangeQuoteStatusCommand(Guid Id, QuoteAction Action, string? Reason) : ICommand;
 
-internal sealed class ChangeQuoteStatusCommandHandler(IApplicationDbContext db, ITenantClock clock, INotificationPublisher notifications, IAuditLog audit) : ICommandHandler<ChangeQuoteStatusCommand>
+internal sealed class ChangeQuoteStatusCommandHandler(
+    IApplicationDbContext db,
+    ITenantClock clock,
+    INotificationPublisher notifications,
+    IAuditLog audit,
+    IBusinessRules rules,
+    IWorkflowEngine workflows) : ICommandHandler<ChangeQuoteStatusCommand>
 {
     public async Task<Result> Handle(ChangeQuoteStatusCommand command, CancellationToken cancellationToken)
     {
-        var quote = await db.Quotes.FirstOrDefaultAsync(q => q.Id == command.Id, cancellationToken);
+        var quote = await db.Quotes.Include(q => q.Lines).FirstOrDefaultAsync(q => q.Id == command.Id, cancellationToken);
         if (quote is null)
         {
             return QuoteErrors.NotFound;
+        }
+
+        // Sending it (or accepting it without having sent it) is the guarded moment: rules and approval workflow.
+        if (command.Action == QuoteAction.Send || command.Action == QuoteAction.Accept && quote.Status == QuoteStatus.Draft)
+        {
+            var facts = DocumentFacts.Quote(quote);
+            var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.Quote, quote.Id, quote.Folio, facts), AutomationTrigger.Send, cancellationToken);
+            if (checks.IsFailure)
+            {
+                return checks;
+            }
+
+            var gate = await workflows.GateAsync(new WorkflowSubject(AutomationDocument.Quote, quote.Id, quote.Folio, facts), GatePersistence.Isolated, cancellationToken);
+            if (!gate.Passed)
+            {
+                return gate.ToError();
+            }
         }
 
         var result = command.Action switch
@@ -166,6 +203,11 @@ internal sealed class ChangeQuoteStatusCommandHandler(IApplicationDbContext db, 
             await notifications.PublishAsync(new NotificationMessage(NotificationEvent.QuoteAccepted, NotificationSeverity.Success,
                 $"Cotización {quote.Folio} aceptada", $"{quote.Subject ?? "Cotización"} por {quote.Total:N2} {quote.Currency}. Conviértela en orden de trabajo.", $"cotizaciones/{quote.Id}"),
                 cancellationToken);
+        }
+
+        if (command.Action == QuoteAction.Reject)
+        {
+            await workflows.CancelPendingAsync(AutomationDocument.Quote, quote.Id, "La cotización fue rechazada por el cliente.", cancellationToken);
         }
 
         audit.Record(AuditAction.StatusChanged, nameof(Quote), quote.Id, $"{quote.Folio} → {quote.Status}", command.Reason);

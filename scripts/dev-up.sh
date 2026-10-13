@@ -13,7 +13,10 @@ KC="${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}"
 
 if [ "${1:-}" = "--standalone" ]; then
   echo "1/2 Keycloak (realm brocal) y PostgreSQL de Brocal..."
-  docker compose -f "$ROOT/docker-compose.standalone.yml" up -d brocal-keycloak brocal-db
+  # Variables propias del modo independiente: el .env de la carpeta es del modo módulo.
+  ENV_FILE="$ROOT/standalone.env"
+  [ -f "$ENV_FILE" ] || ENV_FILE="$ROOT/.env.standalone.example"
+  docker compose -f "$ROOT/docker-compose.standalone.yml" --env-file "$ENV_FILE" up -d brocal-keycloak brocal-db
   PROFILE=standalone
 else
   echo "1/3 PostgreSQL de Brocal (brocal-db)..."

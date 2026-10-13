@@ -3,7 +3,9 @@ using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.Automation;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Common;
 using ChronoLith.Brocal.Domain.Fleet;
 using ChronoLith.Brocal.Domain.Inventory;
@@ -230,7 +232,9 @@ internal sealed class SaveMaintenanceOrderCommandHandler(
     ITenantContext tenant,
     IFolioService folios,
     IUserContext user,
-    ITenantClock clock) : ICommandHandler<SaveMaintenanceOrderCommand, Guid>
+    ITenantClock clock,
+    DocumentFacts facts,
+    IBusinessRules rules) : ICommandHandler<SaveMaintenanceOrderCommand, Guid>
 {
     public async Task<Result<Guid>> Handle(SaveMaintenanceOrderCommand command, CancellationToken cancellationToken)
     {
@@ -259,6 +263,12 @@ internal sealed class SaveMaintenanceOrderCommandHandler(
                 return updated.Error;
             }
 
+            var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.MaintenanceOrder, existing.Id, existing.Folio, facts.Maintenance(existing)), AutomationTrigger.Save, cancellationToken);
+            if (checks.IsFailure)
+            {
+                return checks.Error;
+            }
+
             await db.SaveChangesAsync(cancellationToken);
             return existing.Id;
         }
@@ -281,6 +291,12 @@ internal sealed class SaveMaintenanceOrderCommandHandler(
             if (opened.IsFailure)
             {
                 return Result.Failure<Guid>(opened.Error);
+            }
+
+            var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.MaintenanceOrder, opened.Value.Id, opened.Value.Folio, facts.Maintenance(opened.Value)), AutomationTrigger.Save, ct);
+            if (checks.IsFailure)
+            {
+                return Result.Failure<Guid>(checks.Error);
             }
 
             var previous = unit.Status;
@@ -331,7 +347,10 @@ internal sealed class CloseMaintenanceOrderCommandHandler(
     ITenantClock clock,
     ITenantContext tenant,
     INotificationPublisher notifications,
-    IAuditLog audit) : ICommandHandler<CloseMaintenanceOrderCommand>
+    IAuditLog audit,
+    DocumentFacts facts,
+    IBusinessRules rules,
+    IWorkflowEngine workflows) : ICommandHandler<CloseMaintenanceOrderCommand>
 {
     public async Task<Result> Handle(CloseMaintenanceOrderCommand command, CancellationToken cancellationToken)
     {
@@ -341,6 +360,23 @@ internal sealed class CloseMaintenanceOrderCommandHandler(
             if (order is null)
             {
                 return MaintenanceErrors.NotFound;
+            }
+
+            // Closing is the guarded moment: rules and approval workflow (a held close answers 202).
+            if (order.IsOpen)
+            {
+                var values = facts.Maintenance(order);
+                var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.MaintenanceOrder, order.Id, order.Folio, values), AutomationTrigger.Close, ct);
+                if (checks.IsFailure)
+                {
+                    return checks;
+                }
+
+                var gate = await workflows.GateAsync(new WorkflowSubject(AutomationDocument.MaintenanceOrder, order.Id, order.Folio, values), GatePersistence.Isolated, ct);
+                if (!gate.Passed)
+                {
+                    return Result.Failure(gate.ToError());
+                }
             }
 
             var unit = await db.Units.FirstAsync(u => u.Id == order.UnitId, ct);
@@ -435,7 +471,7 @@ internal sealed class CloseMaintenanceOrderCommandHandler(
 
 public sealed record CancelMaintenanceOrderCommand(Guid Id, string Reason) : ICommand;
 
-internal sealed class CancelMaintenanceOrderCommandHandler(IApplicationDbContext db, IUserContext user, ITenantClock clock) : ICommandHandler<CancelMaintenanceOrderCommand>
+internal sealed class CancelMaintenanceOrderCommandHandler(IApplicationDbContext db, IUserContext user, ITenantClock clock, IWorkflowEngine workflows) : ICommandHandler<CancelMaintenanceOrderCommand>
 {
     public async Task<Result> Handle(CancelMaintenanceOrderCommand command, CancellationToken cancellationToken)
     {
@@ -458,6 +494,7 @@ internal sealed class CancelMaintenanceOrderCommandHandler(IApplicationDbContext
             db.UnitStatusChanges.Add(new UnitStatusChange(unit.Id, clock.UtcNow, UnitStatus.Workshop, UnitStatus.Available, $"Cancelación de {order.Folio}", user.DisplayName));
         }
 
+        await workflows.CancelPendingAsync(AutomationDocument.MaintenanceOrder, order.Id, "La orden de taller se canceló.", cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return Result.Success();
     }

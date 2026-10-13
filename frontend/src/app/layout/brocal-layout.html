@@ -28,6 +28,9 @@
               <a class="br-nav-item" [routerLink]="link(item.path)" routerLinkActive="br-nav-item--active" (click)="closeOnHandset()">
                 <mat-icon>{{ item.icon }}</mat-icon>
                 <span>{{ 'nav.' + item.key | t }}</span>
+                @if (item.approvalsBadge && inbox.pendingApprovals() > 0) {
+                  <span class="br-nav-count">{{ inbox.pendingApprovals() }}</span>
+                }
               </a>
             }
           </div>
@@ -59,7 +62,7 @@
             <button mat-menu-item type="button" [matMenuTriggerFor]="groupMenu"><mat-icon>{{ group.icon }}</mat-icon>{{ 'nav.groups.' + group.key | t }}</button>
             <mat-menu #groupMenu="matMenu">
               @for (item of group.items; track item.path) {
-                <a mat-menu-item [routerLink]="link(item.path)"><mat-icon>{{ item.icon }}</mat-icon>{{ 'nav.' + item.key | t }}</a>
+                <a mat-menu-item [routerLink]="link(item.path)"><mat-icon>{{ item.icon }}</mat-icon>{{ 'nav.' + item.key | t }}@if (item.approvalsBadge && inbox.pendingApprovals() > 0) {<span class="br-nav-count">{{ inbox.pendingApprovals() }}</span>}</a>
               }
             </mat-menu>
           }
@@ -76,7 +79,7 @@
             </button>
             <mat-menu #groupMenu="matMenu" class="br-group-menu">
               @for (item of group.items; track item.path) {
-                <a mat-menu-item [routerLink]="link(item.path)" routerLinkActive="br-menu-item--active"><mat-icon>{{ item.icon }}</mat-icon>{{ 'nav.' + item.key | t }}</a>
+                <a mat-menu-item [routerLink]="link(item.path)" routerLinkActive="br-menu-item--active"><mat-icon>{{ item.icon }}</mat-icon>{{ 'nav.' + item.key | t }}@if (item.approvalsBadge && inbox.pendingApprovals() > 0) {<span class="br-nav-count">{{ inbox.pendingApprovals() }}</span>}</a>
               }
             </mat-menu>
           }
@@ -124,6 +127,11 @@
       }
     </a>
   }
+  @if (inbox.pendingApprovals() > 0 && !session.isPortalUser()) {
+    <a mat-icon-button [routerLink]="link('autorizaciones')" [matTooltip]="'layout.pendingApprovals' | t: { n: inbox.pendingApprovals() }" [attr.aria-label]="'nav.approvals' | t">
+      <mat-icon aria-hidden="false" [matBadge]="inbox.pendingApprovals()" matBadgeSize="small" matBadgeColor="accent">approval</mat-icon>
+    </a>
+  }
   <button mat-icon-button type="button" [matMenuTriggerFor]="inboxMenu" (menuOpened)="inbox.refresh()" [attr.aria-label]="'layout.notifications' | t">
     <mat-icon aria-hidden="false" [matBadge]="inbox.unread() > 0 ? inbox.unread() : null" matBadgeSize="small" matBadgeColor="warn">notifications</mat-icon>
   </button>
@@ -159,7 +167,8 @@
         <span class="cl-muted">{{ session.user()?.email }}</span>
       </div>
       <button mat-menu-item type="button" (click)="toggleLanguage()"><mat-icon>translate</mat-icon>{{ 'layout.language' | t }}</button>
-      @if (auth) {
+      <!-- Keycloak account console: platform administrators only. -->
+      @if (auth && session.isPlatformAdmin()) {
         <button mat-menu-item type="button" (click)="auth.accountConsole()"><mat-icon>manage_accounts</mat-icon>{{ 'layout.myAccount' | t }}</button>
       }
       @if (chronolithUrl) {

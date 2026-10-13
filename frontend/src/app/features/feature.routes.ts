@@ -1,6 +1,6 @@
 import { Route, Routes } from '@angular/router';
 import { P } from '../core/permissions';
-import { platformAdminOnly, requires } from '../core/session';
+import { platformAdminOnly, requires, staffOnly } from '../core/session';
 import { CatalogConfig } from '../shared/crud/fields';
 import { ListConfig } from '../shared/crud/list-page';
 import { RecordConfig } from '../shared/crud/record-page';
@@ -65,6 +65,7 @@ const COLLECTIONS = [P.collectionsRead, P.collectionsManage];
 export const FEATURE_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'inicio' },
   { path: 'inicio', title: 'brocal.nav.home', loadComponent: () => import('./home/home').then((m) => m.HomePage) },
+  { path: 'autorizaciones', title: 'brocal.nav.approvals', canActivate: [staffOnly], loadComponent: () => import('./automation/approvals-page').then((m) => m.ApprovalsPage) },
 
   // ---- Núcleo operativo ----
   list('boletas', TICKET_LIST as ListConfig<never>, TICKETS_READ),
@@ -153,8 +154,15 @@ export const FEATURE_ROUTES: Routes = [
   { path: 'configuracion/notificaciones', title: 'brocal.nav.notificationSettings', canActivate: [requires(P.notificationsManage)], loadComponent: () => import('./admin/settings-pages').then((m) => m.NotificationSettingsPage) },
   { path: 'configuracion/integraciones', title: 'brocal.nav.integrations', canActivate: [requires(P.integrationsManage, P.integrationsExport)], loadComponent: () => import('./admin/settings-pages').then((m) => m.IntegrationsPage) },
   list('configuracion/bitacora', AUDIT_LIST as ListConfig<never>, [P.auditRead]),
+  { path: 'configuracion/flujos', title: 'brocal.nav.workflows', canActivate: [requires(P.automationRead, P.automationManage)], loadComponent: () => import('./automation/workflows-pages').then((m) => m.WorkflowsPage) },
+  { path: 'configuracion/flujos/nuevo', title: 'brocal.workflows.new', canActivate: [requires(P.automationManage)], loadComponent: () => import('./automation/workflows-pages').then((m) => m.WorkflowEditorPage) },
+  { path: 'configuracion/flujos/:id', title: 'brocal.nav.workflows', canActivate: [requires(P.automationRead, P.automationManage)], loadComponent: () => import('./automation/workflows-pages').then((m) => m.WorkflowEditorPage) },
+  { path: 'configuracion/reglas', title: 'brocal.nav.businessRules', canActivate: [requires(P.automationRead, P.automationManage)], loadComponent: () => import('./automation/rules-pages').then((m) => m.RulesPage) },
+  { path: 'configuracion/reglas/nueva', title: 'brocal.rules.new', canActivate: [requires(P.automationManage)], loadComponent: () => import('./automation/rules-pages').then((m) => m.RuleEditorPage) },
+  { path: 'configuracion/reglas/:id', title: 'brocal.nav.businessRules', canActivate: [requires(P.automationRead, P.automationManage)], loadComponent: () => import('./automation/rules-pages').then((m) => m.RuleEditorPage) },
   { ...list('plataforma/empresas', TENANT_LIST as ListConfig<never>, []), canActivate: [platformAdminOnly] },
   { path: 'plataforma/empresas/:id', title: 'brocal.nav.tenants', canActivate: [platformAdminOnly], loadComponent: () => import('./platform/platform-pages').then((m) => m.TenantDetailPage) },
+  { path: 'plataforma/tareas', title: 'brocal.nav.scheduledJobs', canActivate: [platformAdminOnly], loadComponent: () => import('./platform/jobs-page').then((m) => m.ScheduledJobsPage) },
 
   { path: '**', redirectTo: 'inicio' },
 ];

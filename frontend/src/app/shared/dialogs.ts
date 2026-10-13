@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { ApprovalNotices } from '../core/approvals';
 import { I18n, TPipe } from '../core/i18n';
 import { ProblemDetails } from '../core/models';
 
@@ -83,6 +84,7 @@ export class Dialogs {
   private readonly dialog = inject(MatDialog);
   private readonly snack = inject(MatSnackBar);
   private readonly i18n = inject(I18n);
+  private readonly approvals = inject(ApprovalNotices);
 
   confirm(title: string, message: string, confirm?: string, danger = false): Promise<boolean> {
     const ref = this.dialog.open(ConfirmDialog, {
@@ -109,7 +111,32 @@ export class Dialogs {
     return firstValueFrom(ref.afterClosed()).then((result: string | null | undefined) => result ?? null);
   }
 
+  /**
+   * Optional text (a comment): null when cancelled, { value: null } when accepted without text. The cancel
+   * button closes with '' and the backdrop or Esc with undefined; accepting closes with the text or null.
+   */
+  ask(title: string, label: string, options?: { message?: string; confirm?: string }): Promise<{ value: string | null } | null> {
+    const ref = this.dialog.open(PromptDialog, {
+      data: {
+        title,
+        label,
+        message: options?.message ?? null,
+        confirm: options?.confirm ?? this.i18n.t('common.accept'),
+        required: false,
+        value: null,
+        multiline: true,
+      } satisfies PromptData,
+      width: '480px',
+    });
+    return firstValueFrom(ref.afterClosed()).then((result: string | null | undefined) => (result === '' || result === undefined ? null : { value: result }));
+  }
+
   success(message: string): void {
+    // An action held by an approval workflow keeps its notice on screen.
+    if (this.approvals.recentlyShown()) {
+      return;
+    }
+
     this.snack.open(message, this.i18n.t('common.close'), { duration: 4000, panelClass: 'cl-snack--success' });
   }
 

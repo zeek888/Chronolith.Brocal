@@ -91,6 +91,7 @@ public static class DependencyInjection
         services.AddScoped<IUserContext, UserContext>();
         services.AddScoped<TenantContext>();
         services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
+        services.AddScoped<IIsolatedWriter, IsolatedWriter>();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
         services.ConfigureOptions<JwtBearerOptionsSetup>();
@@ -174,6 +175,8 @@ public static class DependencyInjection
             services.AddHostedService<ModuleRegistrationService>();
         }
 
+        // The runner also serves "Ejecutar ahora" of the platform administrator when background jobs are off.
+        services.AddSingleton<IScheduledJobsRunner, ScheduledJobsRunner>();
         if (configuration.GetValue($"{JobsOptions.SectionName}:Enabled", true))
         {
             services.AddHostedService<OutboxDispatcher>();

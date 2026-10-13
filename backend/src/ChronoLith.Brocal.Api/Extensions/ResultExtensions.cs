@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ChronoLith.Brocal.Application.Common;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 
 namespace ChronoLith.Brocal.Api.Extensions;
 
@@ -32,6 +33,13 @@ public static class ResultExtensions
         }
 
         var error = result.Error;
+
+        // An action held by an approval workflow is not an error: the request was registered (202).
+        if (error is ApprovalPendingError pending)
+        {
+            return Results.Json(new ApprovalPendingResponse(true, pending.InstanceId, pending.Description), statusCode: StatusCodes.Status202Accepted);
+        }
+
         var extensions = new Dictionary<string, object?> { ["code"] = error.Code };
 
         if (error is ValidationError validation)
@@ -70,3 +78,6 @@ public static class ResultExtensions
     private static string ToCamelCasePath(string path) =>
         string.Join('.', path.Split('.').Select(JsonNamingPolicy.CamelCase.ConvertName));
 }
+
+/// <summary>Body of a <c>202 Accepted</c>: the action waits for the approval request <see cref="InstanceId"/>.</summary>
+public sealed record ApprovalPendingResponse(bool ApprovalPending, Guid InstanceId, string Message);

@@ -4,10 +4,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
 import { BrocalApi } from '../../core/api';
-import { DatePipe, MoneyPipe, today } from '../../core/format';
+import { DatePipe, DateTimePipe, MoneyPipe, today } from '../../core/format';
 import { I18n, TPipe } from '../../core/i18n';
-import { ComplianceDocument, MaintenanceDue, MonthSummary, PagedResult, PortalSummary, TicketSummary, WorkOrderSummary } from '../../core/models';
+import { ApprovalSummary, ComplianceDocument, MaintenanceDue, MonthSummary, PagedResult, PortalSummary, TicketSummary, WorkOrderSummary } from '../../core/models';
 import { BrocalNav } from '../../core/nav';
+import { InboxService } from '../../core/notifications';
 import { TicketOutbox } from '../../core/offline/ticket-outbox';
 import { P } from '../../core/permissions';
 import { apiResource } from '../../core/resource';
@@ -41,7 +42,7 @@ const QUICK_ACTIONS: QuickAction[] = [
  */
 @Component({
   selector: 'br-home',
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule, TPipe, MoneyPipe, DatePipe, EmptyState, KpiCard, PageHeader, StatusChip],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule, TPipe, MoneyPipe, DatePipe, DateTimePipe, EmptyState, KpiCard, PageHeader, StatusChip],
   templateUrl: './home.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -91,6 +92,13 @@ export class HomePage {
   protected readonly maintenance = apiResource({
     params: () => (this.session.hasModule('maintenance') && this.session.can(P.maintenanceRead, P.maintenanceManage) ? true : undefined),
     stream: () => this.api.get<MaintenanceDue[]>('maintenance/due', { onlyDue: true }),
+  });
+
+  /** Approval requests waiting for the user (the count comes from the inbox polling). */
+  private readonly inbox = inject(InboxService);
+  protected readonly approvals = apiResource({
+    params: () => (this.inbox.pendingApprovals() > 0 && !this.session.isPortalUser() ? this.inbox.pendingApprovals() : undefined),
+    stream: () => this.api.get<PagedResult<ApprovalSummary>>('automation/approvals', { view: 'mine', pageSize: 5 }),
   });
 
   protected readonly hasCompany = computed(() => !!this.session.tenant());

@@ -1,9 +1,9 @@
 # Módulos
 
-Brocal agrupa su funcionalidad en 24 módulos más los catálogos base. Cada empresa activa los módulos que
+Brocal agrupa su funcionalidad en 25 módulos más los catálogos base. Cada empresa activa los módulos que
 contrató (Administración de la plataforma → Empresas); al activar uno se activan los que necesita. Los módulos
-**núcleo** (catálogos base, usuarios y roles, bitácora) siempre están activos. Las rutas son relativas a la base
-del módulo (`/brocal/...` dentro del Shell, `/...` en modo independiente).
+**núcleo** (catálogos base, usuarios y roles, bitácora, flujos y reglas de negocio) siempre están activos. Las
+rutas son relativas a la base del módulo (`/brocal/...` dentro del Shell, `/...` en modo independiente).
 
 Los permisos se asignan a roles dentro de cada empresa; un permiso solo surte efecto si su módulo está contratado.
 
@@ -34,7 +34,7 @@ Los permisos se asignan a roles dentro de cada empresa; un permiso solo surte ef
 | 10 | **Expedientes de personal** | DC-3, H2S, exámenes médicos y cursos SSPA con vencimientos; requisitos por contrato o cliente; matriz de cumplimiento y **paquete documental** (ZIP con carátula) para entregar al cliente. | `personal/empleados`, `personal/documentos`, `personal/matriz`, `personal/paquetes`, `personal/requisitos` | `personnel.read`, `personnel.manage`, `personnel.packages` | — |
 | 11 | **HSE** | Incidentes y casi accidentes con acciones correctivas, inspecciones con plantillas y puntos críticos, pláticas de seguridad con asistentes e indicadores (días sin accidente incapacitante, incidentes por tipo). | `hse/incidentes`, `hse/inspecciones`, `hse/platicas`, `hse/indicadores`, `hse/plantillas` | `hse.read`, `hse.report`, `hse.manage` | Expedientes |
 | 12 | **Cuadrillas y asistencia** | Integrantes, jefe y unidades por cuadrilla; pase de lista diario precargado con las órdenes; pre-nómina (días, horas, extras) y costo de mano de obra por boleta. | `cuadrillas`, `cuadrillas/asistencia`, `cuadrillas/prenomina` | `crews.read`, `crews.manage`, `crews.attendance` | Expedientes |
-| 13 | **Viáticos y gastos** | Comprobación con foto del ticket desde la app; flujo enviar → aprobar o rechazar → pagado. | `viaticos`, `viaticos/nuevo`, `viaticos/:id` | `expenses.capture`, `expenses.read`, `expenses.approve` | Expedientes |
+| 13 | **Viáticos y gastos** | Comprobación con foto del ticket desde la app; flujo enviar → aprobar o rechazar → pagado (la aprobación puede seguir un flujo de autorización por pasos). | `viaticos`, `viaticos/nuevo`, `viaticos/:id` | `expenses.capture`, `expenses.read`, `expenses.approve` | Expedientes |
 
 ## Fiscal y comercial
 
@@ -59,8 +59,9 @@ Los permisos se asignan a roles dentro de cada empresa; un permiso solo surte ef
 |---|---|---|---|---|---|
 | 21 | **Usuarios, roles y permisos** (núcleo) | Invitación por correo, vínculo con un empleado (para "mis órdenes" y "mis boletas") o con un cliente (portal); roles editables a partir de plantillas. **El operador ve solo sus órdenes, la oficina ve todo y el dueño ve el dashboard.** Configuración de la empresa. | `configuracion/usuarios`, `configuracion/roles`, `configuracion/empresa` | `access.users`, `access.roles`, `access.settings` | — |
 | 22 | **Bitácora de auditoría** (núcleo) | Quién capturó, editó, firmó, canceló, timbró o exportó qué y cuándo, con los valores anteriores y nuevos. | `configuracion/bitacora` | `audit.read` | — |
-| 23 | **Notificaciones** | Reglas por evento (15 eventos: boleta firmada, permiso por vencer, unidad liberada de taller, factura vencida…) con canales en la aplicación, **correo y WhatsApp** (Cloud API de Meta con plantilla aprobada); SMTP propio opcional; bandeja de envíos con reintento. | `configuracion/notificaciones` | `notifications.manage` | — |
+| 23 | **Notificaciones** | Reglas por evento (22 eventos: boleta firmada, permiso por vencer, contratos por vencer, unidad liberada de taller, factura vencida, autorización solicitada, aviso de regla de negocio…) con canales en la aplicación, **correo y WhatsApp** (Cloud API de Meta con plantilla aprobada); SMTP propio opcional; bandeja de envíos con reintento. | `configuracion/notificaciones` | `notifications.manage` | — |
 | 24 | **Integraciones** | API keys con alcances (`gps.write`, `tickets.read`, `export.read`); **GPS de la flota**; consultas para otros sistemas; **exportación a Excel** de 17 conjuntos de datos por periodo; pólizas de ingresos y cobranza en Excel o CSV para **CONTPAQi Contabilidad / Aspel COI**. | `configuracion/integraciones` | `integrations.manage`, `integrations.export` | — |
+| 25 | **Flujos y reglas de negocio** (núcleo) | **Flujos de autorización** por pasos (aprobadores por rol, permiso o administradores; aprobaciones requeridas y plazos con recordatorio) y **reglas que bloquean o avisan** según los datos de boletas, órdenes, cotizaciones, facturas, viáticos, órdenes de taller, combustible y almacén. Por empresa o **globales** para todas (obligatorias u opcionales, las define la plataforma). Bandeja de autorizaciones y panel en cada documento. Ver [flujos y reglas](automatizacion.md). | `autorizaciones`, `configuracion/flujos`, `configuracion/reglas` | `automation.read`, `automation.manage` | — |
 
 ## Roles predeterminados
 
@@ -69,7 +70,7 @@ Cada empresa nueva recibe estos roles (editables):
 | Rol | Para quién |
 |---|---|
 | Administrador | Acceso total a la empresa. |
-| Dirección | Dashboard, reportes y consulta de toda la operación. |
+| Dirección | Dashboard, reportes y consulta de toda la operación (incluye flujos, reglas y autorizaciones). |
 | Oficina | Catálogos, tarifas, programación, validación de boletas y cotizaciones. |
 | Supervisor de campo | Captura y firma de boletas, asistencia de su cuadrilla y reportes HSE. |
 | Operador de campo | Solo sus órdenes y boletas; captura en campo, combustible, gastos y reportes HSE. |

@@ -4,8 +4,9 @@
 (captura en campo sin señal, firma del cliente, fotos y PDF con la marca de la empresa), órdenes de trabajo y
 programación, tarifarios, flota y mantenimiento, permisos por unidad, combustible, inventario, expedientes del
 personal (DC-3, H2S, SSPA), HSE, cuadrillas, viáticos, facturación CFDI 4.0, Carta Porte, cobranza con COPADE,
-cotizaciones, dashboard gerencial, portal del cliente, reportes, bitácora, notificaciones (correo y WhatsApp) e
-integraciones (GPS, CONTPAQi/Aspel, Excel).
+cotizaciones, dashboard gerencial, portal del cliente, reportes, bitácora, notificaciones (correo y WhatsApp),
+integraciones (GPS, CONTPAQi/Aspel, Excel), flujos de autorización y reglas de negocio configurables por empresa
+o para todas, y revisión automática de vencimientos.
 
 Funciona **como módulo de ChronoLith** (se carga en el Shell bajo `/brocal` y toma su sesión, tema e idioma) o
 **de forma independiente** con su propio Keycloak. Cada empresa tiene sus módulos contratados, cuotas, colores,
@@ -20,7 +21,8 @@ logotipos, configuración operativa y fiscal, usuarios y roles.
 ## Inicio rápido (independiente, Docker)
 
 ```bash
-docker compose -f docker-compose.standalone.yml up -d --build
+cp .env.standalone.example standalone.env       # una vez; ajusta contraseñas y SMTP si hace falta
+docker compose -f docker-compose.standalone.yml --env-file standalone.env up -d --build
 ```
 
 | Servicio | URL | Usuario de desarrollo |
@@ -29,8 +31,9 @@ docker compose -f docker-compose.standalone.yml up -d --build
 | Usuarios de la empresa demo | — | `oficina`, `supervisor`, `operador`, `direccion`, `cliente` / `Demo2026!` |
 | Consola de Keycloak | http://localhost:8181/admin | `admin` / `admin` |
 
-Las credenciales son solo para desarrollo; para otros ambientes copia `.env.standalone.example` a `.env` y
-cámbialas.
+Las credenciales son solo para desarrollo; cámbialas en `standalone.env` para otros ambientes. El modo
+independiente lleva su propio archivo porque el `.env` de la carpeta es del modo módulo (apunta al Keycloak de
+ChronoLith) y Compose lo leería por omisión; git ignora ambos.
 
 ## Como módulo de ChronoLith
 
@@ -77,8 +80,10 @@ docs/       documentación
 ## Documentación
 
 - [Arquitectura](docs/arquitectura.md): capas, multiempresa, seguridad, fiscal, tema y captura sin señal.
-- [Módulos](docs/modulos.md): los 24 módulos, pantallas, permisos, roles predeterminados y API de integraciones.
+- [Módulos](docs/modulos.md): los 25 módulos, pantallas, permisos, roles predeterminados y API de integraciones.
 - [Administración multiempresa](docs/administracion.md): alta de empresas, cuotas, marca, usuarios y roles.
+- [Flujos, reglas y tareas programadas](docs/automatizacion.md): autorizaciones por pasos, reglas que bloquean o
+  avisan (por empresa o globales) y revisión de vencimientos.
 - [Integración con ChronoLith](docs/integracion-chronolith.md): contrato de módulo, desarrollo y producción.
 - [Despliegue](docs/despliegue.md): imágenes, composiciones, configuración, respaldos y lista para producción.
 

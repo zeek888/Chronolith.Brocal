@@ -1,5 +1,6 @@
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
@@ -96,6 +97,11 @@ internal static class LoggingDecorator
         if (result.IsSuccess)
         {
             logger.Log(successLevel, "{Request} completado", requestType.Name);
+        }
+        else if (result.Error is ApprovalPendingError)
+        {
+            // Held by an approval workflow: an expected outcome, not a failure.
+            logger.LogInformation("{Request} en espera de autorización: {ErrorDescription}", requestType.Name, result.Error.Description);
         }
         else
         {

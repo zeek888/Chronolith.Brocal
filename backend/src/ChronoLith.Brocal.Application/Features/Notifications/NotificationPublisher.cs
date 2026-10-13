@@ -29,7 +29,15 @@ internal sealed class NotificationPublisher(IApplicationDbContext db, ITenantCon
         [NotificationEvent.ExpenseSubmitted] = ["billing"],
         [NotificationEvent.FuelAnomaly] = ["workshop", "management"],
         [NotificationEvent.LowStock] = ["warehouse"],
-        [NotificationEvent.UninvoicedTickets] = ["billing"]
+        [NotificationEvent.UninvoicedTickets] = ["billing"],
+        // Approvals and rule alerts go to the people the workflow or the rule names (assignees).
+        [NotificationEvent.ApprovalRequested] = [],
+        [NotificationEvent.ApprovalDecided] = [],
+        [NotificationEvent.BusinessRuleAlert] = [],
+        [NotificationEvent.ContractExpiring] = ["office", "management"],
+        [NotificationEvent.CorrectiveActionDue] = ["hse"],
+        [NotificationEvent.ApiKeyExpiring] = [],
+        [NotificationEvent.DocumentMissing] = ["hse", "workshop"]
     };
 
     public async Task PublishAsync(NotificationMessage message, CancellationToken cancellationToken)
@@ -68,18 +76,25 @@ internal sealed class NotificationPublisher(IApplicationDbContext db, ITenantCon
             }
         }
 
+        var emails = new List<string>();
         if (channels.HasFlag(NotificationChannels.Email))
         {
-            var emails = memberships.Select(m => m.Email).Concat(rule?.Emails ?? []).ToList();
+            emails.AddRange(memberships.Select(m => m.Email).Concat(rule?.Emails ?? []));
             if (rule?.NotifyCustomerContacts == true && message.CustomerId is not null)
             {
                 emails.AddRange(await CustomerContactsAsync(message, c => c.Email, cancellationToken));
             }
+        }
 
-            foreach (var email in emails.Where(e => !string.IsNullOrWhiteSpace(e)).Distinct(StringComparer.OrdinalIgnoreCase))
-            {
-                await EnqueueAsync(OutboxChannel.Email, email, message, now, cancellationToken);
-            }
+        // Addresses named by a business rule get the e-mail even when the event only notifies in the application.
+        if (message.ExtraEmails is { Count: > 0 } extra && tenantContext.Tenant.IsModuleEnabled(BrocalModules.Notifications))
+        {
+            emails.AddRange(extra);
+        }
+
+        foreach (var email in emails.Where(e => !string.IsNullOrWhiteSpace(e)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            await EnqueueAsync(OutboxChannel.Email, email, message, now, cancellationToken);
         }
 
         if (channels.HasFlag(NotificationChannels.WhatsApp))

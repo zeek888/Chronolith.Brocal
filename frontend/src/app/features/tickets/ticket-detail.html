@@ -12,7 +12,7 @@
           <button *brCan="p.ticketsCapture" mat-stroked-button type="button" (click)="closeWithoutSignature()" [disabled]="busy()"><mat-icon>task_alt</mat-icon>{{ 'tickets.close' | t }}</button>
         }
       }
-      @if (t.status === 'signed') {
+      @if (t.status === 'signed' && !workflowPending()) {
         <button *brCan="p.ticketsApprove" mat-flat-button type="button" (click)="approve()" [disabled]="busy()"><mat-icon>verified</mat-icon>{{ 'tickets.approve' | t }}</button>
       }
       @if (canInvoice()) {
@@ -67,6 +67,8 @@
         }
       </div>
     </section>
+
+    <br-workflow-panel document="serviceTicket" [documentId]="t.id" [version]="t.status" (changed)="refresh()" (loaded)="workflowPending.set($event?.current?.summary?.status === 'pending')" />
 
     <div class="br-grid br-grid--2">
       <section class="br-card">

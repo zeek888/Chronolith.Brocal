@@ -7,10 +7,12 @@ import { ActivatedRoute, ParamMap, RouterLink } from '@angular/router';
 import { Observable, firstValueFrom } from 'rxjs';
 import { BrocalApi } from '../../core/api';
 import { I18n, TPipe } from '../../core/i18n';
+import { AutomationDocument } from '../../core/models';
 import { BrocalNav } from '../../core/nav';
 import { BrocalSession } from '../../core/session';
 import { Dialogs } from '../dialogs';
 import { PageHeader, StatusChip } from '../ui';
+import { WorkflowPanel } from '../workflow-panel';
 import { EntityForm } from './entity-form';
 import { FieldDef, buildForm, readForm } from './fields';
 import { ActionContext, actionContext } from './list-page';
@@ -50,6 +52,10 @@ export interface RecordConfig {
   subtitle?: (record: Rec, i18n: I18n) => string | null;
   actions?: RecordAction[];
   warnings?: (record: Rec) => string[];
+  /** Document of the approval workflows (shows the workflow panel of the record). */
+  workflow?: AutomationDocument;
+  /** Actions decided by the approvers while a request of the record is pending (hidden meanwhile). */
+  workflowHides?: string[];
 }
 
 /**
@@ -58,7 +64,7 @@ export interface RecordConfig {
  */
 @Component({
   selector: 'br-record-page',
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule, TPipe, EntityForm, PageHeader, StatusChip],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule, TPipe, EntityForm, PageHeader, StatusChip, WorkflowPanel],
   template: `
     <div class="cl-page">
       <br-page-header [title]="title()" [icon]="config().icon" [subtitle]="subtitle()">
@@ -91,6 +97,9 @@ export interface RecordConfig {
               }
             </ul>
           </div>
+        }
+        @if (config().workflow; as document) {
+          <br-workflow-panel [document]="document" [documentId]="recordId()" [version]="record" (changed)="reloadRecord()" (loaded)="workflowPending.set($event?.current?.summary?.status === 'pending')" />
         }
       }
 
@@ -131,6 +140,9 @@ export class RecordPage implements OnInit {
   protected readonly form = signal<FormGroup | null>(null);
   protected readonly busy = signal(false);
 
+  protected readonly recordId = computed(() => (this.record()?.['id'] as string | undefined) ?? '');
+  protected readonly workflowPending = signal(false);
+
   protected readonly editable = computed(() => {
     const record = this.record();
     const config = this.config();
@@ -160,7 +172,10 @@ export class RecordPage implements OnInit {
       return [];
     }
 
-    return (this.config().actions ?? []).filter((a) => (!a.permissions || this.session.can(...a.permissions)) && (!a.visible || a.visible(record)));
+    const held = this.workflowPending() ? (this.config().workflowHides ?? []) : [];
+    return (this.config().actions ?? []).filter(
+      (a) => (!a.permissions || this.session.can(...a.permissions)) && (!a.visible || a.visible(record)) && !held.includes(a.key),
+    );
   });
 
   async ngOnInit(): Promise<void> {
@@ -171,6 +186,14 @@ export class RecordPage implements OnInit {
       const config = this.config();
       const defaults = (await config.defaults?.(this.route.snapshot.queryParamMap, actionContext(this.injector))) ?? {};
       this.setForm(defaults);
+    }
+  }
+
+  /** A decision of its workflow can change the record (an approval approves the expense report). */
+  protected async reloadRecord(): Promise<void> {
+    const id = this.record()?.['id'] as string | undefined;
+    if (id) {
+      await this.load(id);
     }
   }
 

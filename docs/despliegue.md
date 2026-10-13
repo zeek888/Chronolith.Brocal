@@ -15,7 +15,7 @@ El build de la imagen web verifica las traducciones (`npm run i18n:check`) y com
 |---|---|
 | `docker-compose.yml` | Módulo de ChronoLith: `brocal-db`, `brocal-api`, `brocal-web` unidos a la red externa `chronolith-net`. Variables en `.env` (ver `.env.example`). |
 | `docker-compose.prod.yml` | Se combina con el anterior en el servidor: sin puertos publicados, alias `chronolith-brocal-web` para el gateway y variables obligatorias (ver `.env.production.example`). |
-| `docker-compose.standalone.yml` | Brocal independiente con su Keycloak (realm `brocal`, tema de login de ChronoLith) y su PostgreSQL. Variables en `.env.standalone.example`. |
+| `docker-compose.standalone.yml` | Brocal independiente con su Keycloak (realm `brocal`, tema de login de ChronoLith) y su PostgreSQL. Variables en `standalone.env` (copia de `.env.standalone.example`), siempre con `--env-file`. |
 
 ```bash
 # Módulo (desarrollo)
@@ -23,8 +23,11 @@ docker compose up -d --build
 # Módulo (producción, detrás de chronolith-gateway)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 # Independiente
-docker compose -f docker-compose.standalone.yml up -d --build
+docker compose -f docker-compose.standalone.yml --env-file standalone.env up -d --build
 ```
+
+El modo independiente no debe leer el `.env` de la carpeta: es el del modo módulo y apunta al Keycloak de
+ChronoLith (`KEYCLOAK_PUBLIC_URL`). Compose carga `.env` por omisión, por eso el independiente usa `--env-file`.
 
 La API aplica las migraciones al arrancar (`Database__ApplyMigrationsOnStartup`) y, si se pide, crea la empresa de
 demostración. Salud: `GET /health` en la API y en el contenedor web.
@@ -54,7 +57,7 @@ Todas las claves se pueden dar como variables de entorno con `__` (p. ej. `Keycl
 | `Pdf:FontsPath` | Carpeta con fuentes TrueType si no se usan Liberation/DejaVu del sistema. |
 | `Email:*` | SMTP de la plataforma (`Host`, `Port`, `UseSsl`, `User`, `Password`, `FromAddress`, `FromName`). |
 | `WhatsApp:ApiBaseUrl` · `ApiVersion` | Graph API de Meta (las credenciales son por empresa). |
-| `Jobs:Enabled` · `ScanIntervalMinutes` | Envío de la bandeja de salida y revisiones programadas (60 min). |
+| `Jobs:Enabled` · `ScanIntervalMinutes` | Envío de la bandeja de salida y revisiones programadas: vencimientos, recordatorios y autorizaciones atrasadas (cada 60 min; mínimo 5). Con `false`, el administrador de la plataforma aún puede ejecutar la revisión desde **Tareas programadas**. |
 | `Cors:AllowedOrigins` | Origen del Shell y de la página independiente. |
 | `OpenApi:Enabled` | Publica `/openapi` y `/scalar` fuera de desarrollo. |
 
@@ -69,6 +72,16 @@ Todas las claves se pueden dar como variables de entorno con `__` (p. ej. `Keycl
 `remoteEntry.json`, `importmap.json`, `index.html` y `config.json` se sirven sin caché y con CORS para el Shell;
 los archivos con *hash*, con caché de un año.
 
+## Tema de inicio de sesión (modo independiente)
+
+El tema `infra/keycloak/themes/chronolith` se monta en el Keycloak independiente. Keycloak guarda copias
+comprimidas de los CSS y JS en `/opt/keycloak/data/tmp/kc-gzip-cache` y no las renueva al cambiar los archivos:
+después de editar el tema, bórralas (o recrea el contenedor) para que los navegadores reciban la versión nueva.
+
+```bash
+docker exec brocal-standalone-brocal-keycloak-1 rm -rf /opt/keycloak/data/tmp/kc-gzip-cache
+```
+
 ## Lista para producción
 
 - [ ] Contraseñas y secretos propios: base de datos, `KC_BROCAL_API_CLIENT_SECRET`, administrador de Keycloak.
@@ -77,7 +90,9 @@ los archivos con *hash*, con caché de un año.
 - [ ] `BROCAL_SEED_DEMO=false` y `Tenancy__RequireVerifiedEmail=true`.
 - [ ] PAC real implementado y configurado por empresa (el PAC "Simulado" no tiene validez fiscal).
 - [ ] SMTP de la plataforma o de cada empresa; WhatsApp con plantilla aprobada si se usa.
-- [ ] Una sola réplica con `Jobs__Enabled=true` si se escala la API (el resto con `false`) y `/data` compartido.
+- [ ] Si se escala la API: `/data` compartido. La bandeja de salida y las revisiones programadas usan candados de
+  PostgreSQL (nunca corren dos a la vez), así que basta con `Jobs__Enabled=true` en una réplica; activarlo en
+  varias no duplica avisos.
 
 ## Respaldos
 

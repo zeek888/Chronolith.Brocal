@@ -127,6 +127,7 @@ export const QUOTE_RECORD: RecordConfig = {
     return `${q.summary.customerName ?? ''} · ${i18n.t('fields.total')} ${money(q.summary.total, q.summary.currency)}`;
   },
   status: { enum: 'quoteStatus', value: (r) => (r['summary'] as QuoteSummary).status },
+  workflow: 'quote',
   warnings: (r) => {
     const q = r as unknown as QuoteDetail;
     return [q.rejectionReason ? `Rechazada: ${q.rejectionReason}` : null, q.workOrderFolio ? `Convertida en la orden ${q.workOrderFolio}` : null].filter((w): w is string => !!w);

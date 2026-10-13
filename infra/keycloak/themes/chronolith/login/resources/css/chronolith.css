@@ -73,7 +73,7 @@
 }
 
 .pf-v5-c-login__container::after {
-  content: "ChronoLith · well life-cycle by GUMEC";
+  content: "ChronoLith · well life-cycle";
   display: block;
   margin-top: 16px;
   text-align: center;

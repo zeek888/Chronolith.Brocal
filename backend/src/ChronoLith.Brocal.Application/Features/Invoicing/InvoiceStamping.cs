@@ -3,7 +3,9 @@ using System.Text;
 using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.Automation;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Fiscal;
 using ChronoLith.Brocal.Domain.Operations;
 using ChronoLith.Brocal.Domain.Platform;
@@ -25,7 +27,8 @@ internal sealed class InvoiceStamping(
     InvoicePdfService pdf,
     INotificationPublisher notifications,
     IAuditLog audit,
-    ITenantClock clock)
+    ITenantClock clock,
+    InvoiceAuthorization authorization)
 {
     public async Task<Result<Invoice>> StampAsync(Invoice invoice, CfdiCartaPorte? cartaPorte, CancellationToken cancellationToken)
     {
@@ -40,7 +43,8 @@ internal sealed class InvoiceStamping(
             return InvoiceErrors.IncompleteReceiver;
         }
 
-        var tickets = await db.Tickets.Where(t => invoice.TicketIds.Contains(t.Id)).ToListAsync(cancellationToken);
+        // With their lines: a draft stamped on its own (not right after creating it) loads its tickets here.
+        var tickets = await db.Tickets.Include(t => t.Lines).Where(t => invoice.TicketIds.Contains(t.Id)).ToListAsync(cancellationToken);
         foreach (var ticket in tickets)
         {
             var invoiceable = ticket.EnsureInvoiceable(tenant.Tenant.Settings.RequireApprovalBeforeInvoice);
@@ -48,6 +52,12 @@ internal sealed class InvoiceStamping(
             {
                 return Error.Conflict(invoiceable.Error.Code, $"{ticket.Folio}: {invoiceable.Error.Description}");
             }
+        }
+
+        var released = await authorization.EnsureTicketsReleasedAsync(tickets, cancellationToken);
+        if (released.IsFailure)
+        {
+            return released.Error;
         }
 
         var folio = await folios.NextAsync(FolioKeys.Invoice(invoice.Series), cancellationToken);
@@ -120,6 +130,43 @@ internal sealed class InvoiceStamping(
             AttachmentFileId: invoice.PdfFileId), cancellationToken);
 
         return invoice;
+    }
+}
+
+/// <summary>
+/// Business rules (moment "stamp") and approval workflow of an invoice, and the validation workflows of its
+/// tickets: a ticket waiting for (or rejected in) its validation cannot be invoiced.
+/// </summary>
+internal sealed class InvoiceAuthorization(DocumentFacts facts, IBusinessRules rules, IWorkflowEngine workflows)
+{
+    public async Task<Result<WorkflowGateResult>> CheckAsync(Invoice invoice, GatePersistence persistence, CancellationToken cancellationToken)
+    {
+        var values = await facts.InvoiceAsync(invoice, cancellationToken);
+        var reference = DocumentLoader.InvoiceReference(invoice);
+        var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.Invoice, invoice.Id, reference, values), AutomationTrigger.Stamp, cancellationToken);
+        if (checks.IsFailure)
+        {
+            return checks.Error;
+        }
+
+        return await workflows.GateAsync(new WorkflowSubject(AutomationDocument.Invoice, invoice.Id, reference, values), persistence, cancellationToken);
+    }
+
+    public async Task<Result> EnsureTicketsReleasedAsync(IReadOnlyList<ServiceTicket> tickets, CancellationToken cancellationToken)
+    {
+        var statuses = await workflows.LatestStatusesAsync(AutomationDocument.ServiceTicket, tickets.Select(t => t.Id).ToList(), cancellationToken);
+        foreach (var ticket in tickets)
+        {
+            switch (statuses.GetValueOrDefault(ticket.Id, WorkflowStatus.Approved))
+            {
+                case WorkflowStatus.Pending:
+                    return Error.Conflict("Workflow.InProgress", $"{ticket.Folio} está en autorización: se factura cuando se valide.");
+                case WorkflowStatus.Rejected when ticket.Status == TicketStatus.Signed:
+                    return WorkflowErrors.Rejected(ticket.Folio);
+            }
+        }
+
+        return Result.Success();
     }
 }
 

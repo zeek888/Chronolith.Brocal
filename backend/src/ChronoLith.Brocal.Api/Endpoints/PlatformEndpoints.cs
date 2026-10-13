@@ -63,6 +63,16 @@ internal sealed class PlatformEndpoints : IEndpoint
 
         tenants.MapPut("{id:guid}/status", async (Guid id, StatusRequest body, ICommandHandler<ChangeTenantStatusCommand> handler, CancellationToken ct) =>
             (await handler.Handle(new ChangeTenantStatusCommand(id, body.Action, body.Reason, body.TrialEndsOn), ct)).ToNoContent());
+
+        var jobs = group.MapGroup("jobs").RequirePlatformAdmin();
+
+        jobs.MapGet("", async (int? take, IQueryHandler<GetScheduledJobsQuery, ScheduledJobsDto> handler, CancellationToken ct) =>
+                (await handler.Handle(new GetScheduledJobsQuery(take ?? 30), ct)).ToOk())
+            .WithSummary("Revisiones programadas (vencimientos, recordatorios, autorizaciones atrasadas): últimas ejecuciones.");
+
+        jobs.MapPost("run", async (ICommandHandler<RunScheduledJobsCommand, ScheduledJobRunDto> handler, CancellationToken ct) =>
+                (await handler.Handle(new RunScheduledJobsCommand(), ct)).ToOk())
+            .WithSummary("Ejecuta ahora las revisiones de todas las empresas operativas.");
     }
 
     internal sealed record TenantProfileRequest(string Name, string? LegalName, string? TaxId, string? ContactEmail, string? ContactPhone, string Plan);

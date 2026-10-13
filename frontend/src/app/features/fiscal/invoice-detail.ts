@@ -21,6 +21,7 @@ import { BrocalSession, CanDirective } from '../../core/session';
 import { actionContext } from '../../shared/crud/list-page';
 import { Dialogs } from '../../shared/dialogs';
 import { PageHeader, StatusChip } from '../../shared/ui';
+import { WorkflowPanel } from '../../shared/workflow-panel';
 import { registerPayment } from './register-payment';
 
 /** SAT cancellation motive (01 needs the UUID that replaces the invoice). */
@@ -66,7 +67,7 @@ export class CancelInvoiceDialog {
 /** Factura CFDI 4.0: receiver, concepts, totals, fiscal stamp, files, payments and cancellation. */
 @Component({
   selector: 'br-invoice-detail',
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule, MatTooltipModule, TPipe, EnumPipe, MoneyPipe, NumPipe, DatePipe, DateTimePipe, CanDirective, PageHeader, StatusChip],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule, MatTooltipModule, TPipe, EnumPipe, MoneyPipe, NumPipe, DatePipe, DateTimePipe, CanDirective, PageHeader, StatusChip, WorkflowPanel],
   template: `
     <div class="cl-page">
       @if (invoice.isLoading() || busy()) {
@@ -114,6 +115,8 @@ export class CancelInvoiceDialog {
             <div><dt>{{ 'fields.pac' | t }}</dt><dd>{{ inv.pacProvider ?? '—' }}</dd></div>
           </dl>
         </section>
+
+        <br-workflow-panel document="invoice" [documentId]="inv.summary.id" [version]="inv.summary.status" (changed)="refresh()" />
 
         <div class="br-grid br-grid--2">
           <section class="br-card">
@@ -274,6 +277,11 @@ export class InvoiceDetailPage {
 
   protected file(xml: boolean, download: boolean): void {
     this.api.download(`invoices/${this.id()}/${xml ? 'xml' : 'pdf'}`, undefined, undefined, `${this.folio()}.${xml ? 'xml' : 'pdf'}`).subscribe((f) => (download ? saveFile(f) : openFile(f)));
+  }
+
+  /** A decision of its workflow (the stamp may be unlocked). */
+  protected refresh(): void {
+    this.reload.update((r) => r + 1);
   }
 
   private async run(action: () => Promise<unknown>): Promise<void> {

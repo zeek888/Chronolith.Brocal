@@ -7,8 +7,8 @@ sus módulos contratados, cuotas, marca, configuración operativa y fiscal, usua
 
 | Nivel | Quién | Qué configura |
 |---|---|---|
-| Plataforma | Dentro de ChronoLith: permiso `brocal.platform.manage` del Shell o rol de realm `chronolith-admin` / `brocal-platform-admin`. Independiente: rol de realm `brocal-platform-admin`. | Alta de empresas, módulos contratados, cuotas, plan, estatus (prueba, activa, suspendida, cancelada) y marca de cualquier empresa. Puede entrar a cualquier empresa. |
-| Empresa | Administrador de la empresa (o un rol con `access.*`). | Usuarios y roles, marca y estilo, operación, datos fiscales y PAC, notificaciones e integraciones. |
+| Plataforma | Dentro de ChronoLith: permiso `brocal.platform.manage` del Shell o rol de realm `chronolith-admin` / `brocal-platform-admin`. Independiente: rol de realm `brocal-platform-admin`. | Alta de empresas, módulos contratados, cuotas, plan, estatus (prueba, activa, suspendida, cancelada) y marca de cualquier empresa. **Flujos y reglas globales** (obligatorios u opcionales para todas las empresas) y **tareas programadas**. Puede entrar a cualquier empresa. |
+| Empresa | Administrador de la empresa (o un rol con `access.*`). | Usuarios y roles, marca y estilo, operación, datos fiscales y PAC, notificaciones, integraciones y flujos y reglas de la empresa (`automation.manage`). |
 | Usuario | Cada persona según sus roles. | — |
 
 Dentro de ChronoLith, el Shell decide **quién puede abrir Brocal** (permiso `brocal.access`); todo lo demás se
@@ -88,6 +88,28 @@ destinatarios (roles, personal asignado, contactos del cliente marcados para avi
 adicionales). Correo: servidor de la plataforma o SMTP propio. WhatsApp: Cloud API de Meta con una plantilla
 aprobada (token y *phone number id*). La pestaña **Envíos** muestra la bandeja de salida con reintento manual; sin
 servidor configurado los mensajes quedan como "simulados".
+
+## Flujos de autorización y reglas de negocio
+
+- **Flujos** (`configuracion/flujos`): qué documentos requieren autorización (condiciones sobre sus datos) y quién
+  autoriza cada paso, con aprobaciones requeridas y plazo. Las solicitudes se deciden en `autorizaciones` o en el
+  panel de cada documento.
+- **Reglas** (`configuracion/reglas`): en qué momento de un documento se **bloquea** la operación o se **avisa**, a
+  quién y con qué mensaje.
+- **Alcance**: cada empresa crea las suyas. El administrador de la plataforma crea definiciones **globales** y
+  decide si son **obligatorias** (las empresas solo las consultan) u **opcionales** (cada empresa puede
+  desactivarlas desde la lista; el cambio queda en la bitácora).
+
+Detalle completo en [flujos, reglas y tareas programadas](automatizacion.md).
+
+## Tareas programadas (plataforma)
+
+`plataforma/tareas`: cada hora se revisan todas las empresas operativas (permisos, documentos del personal,
+licencias, contratos y tarifarios por vencer; documentos obligatorios faltantes; acciones correctivas, llaves de
+API, mantenimiento, facturas vencidas, boletas sin facturar, existencias bajas, cotizaciones vencidas y
+autorizaciones atrasadas). La pantalla muestra la bitácora de ejecuciones con los hallazgos por empresa y permite
+**ejecutar ahora**. Los plazos de aviso salen del tipo de documento, de la regla de notificación del evento o de
+los días de anticipación de la empresa.
 
 ## Integraciones
 

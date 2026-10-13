@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Common;
 using ChronoLith.Brocal.Domain.Platform;
 using Microsoft.EntityFrameworkCore;
@@ -177,9 +178,14 @@ internal sealed class AuditTrailInterceptor(IUserContext userContext, ITenantCon
                 changes = changed.Count == 0 ? null : JsonSerializer.Serialize(changed, Json);
             }
 
-            var tenantId = entry.Entity is ITenantOwned owned
-                ? (Guid?)(Guid)entry.Property(nameof(ITenantOwned.TenantId)).CurrentValue!
-                : tenantContext.HasTenant ? tenantContext.TenantId : null;
+            // Global workflows and rules (no company) are platform-level entries, not entries of the company at hand.
+            var tenantId = entry.Entity switch
+            {
+                ITenantOwned => (Guid?)(Guid)entry.Property(nameof(ITenantOwned.TenantId)).CurrentValue!,
+                WorkflowDefinition workflow => workflow.TenantId,
+                BusinessRule rule => rule.TenantId,
+                _ => tenantContext.HasTenant ? tenantContext.TenantId : null
+            };
 
             context.Add(new AuditEntry(
                 tenantId == Guid.Empty ? null : tenantId,

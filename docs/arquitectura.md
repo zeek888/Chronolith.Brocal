@@ -30,7 +30,7 @@ formas con el mismo código:
 
 | Proyecto | Contenido |
 |---|---|
-| `Domain` | Agregados y reglas de negocio por área: `Operations` (boletas, órdenes), `Commercial` (clientes, contratos, tarifarios, cotizaciones), `Fleet`, `Inventory`, `People`, `Compliance`, `Hse`, `Fiscal` (facturas, pagos, Carta Porte, estimaciones), `Platform` (empresas, membresías, roles, módulos, archivos, notificaciones, bitácora). Sin dependencias de infraestructura; setters privados y resultados `Result`. |
+| `Domain` | Agregados y reglas de negocio por área: `Operations` (boletas, órdenes), `Commercial` (clientes, contratos, tarifarios, cotizaciones), `Fleet`, `Inventory`, `People`, `Compliance`, `Hse`, `Fiscal` (facturas, pagos, Carta Porte, estimaciones), `Automation` (catálogo de documentos y datos, flujos, solicitudes de autorización, reglas), `Platform` (empresas, membresías, roles, módulos, archivos, notificaciones, bitácora, ejecuciones programadas). Sin dependencias de infraestructura; setters privados y resultados `Result`. |
 | `Application` | Casos de uso CQRS por funcionalidad (`Features/*`): comandos y consultas `sealed record` con su manejador `internal sealed`. Decoradores con Scrutor para validación (FluentValidation) y bitácora de ejecución; sin MediatR. |
 | `Infrastructure` | EF Core 10 + Npgsql (esquema `brocal`, nombres `snake_case`, concurrencia con `xmin`), interceptores multiempresa y de auditoría, archivos en disco con URLs firmadas, PDF (PDFsharp/MigraDoc), Excel (ClosedXML), CFDI 4.0, correo (MailKit), WhatsApp, Keycloak, integración con el Shell y tareas programadas. |
 | `Api` | *Minimal APIs* agrupadas por área (`Endpoints/*`), políticas de autorización, ProblemDetails en español, OpenAPI con Scalar, `/health`. |
@@ -38,7 +38,8 @@ formas con el mismo código:
 Pruebas en `backend/tests`: dominio (xUnit v3), reglas de arquitectura (NetArchTest: dependencias entre capas,
 manejadores `internal sealed`, comandos `sealed record`, sin setters públicos en el dominio) e integración
 (WebApplicationFactory + PostgreSQL en Testcontainers): seguridad de todos los endpoints, aislamiento entre
-empresas, ciclo completo boleta → firma → PDF → factura timbrada → pago, folios concurrentes, portal y API keys.
+empresas, ciclo completo boleta → firma → PDF → factura timbrada → pago, folios concurrentes, portal, API keys,
+flujos de autorización (de empresa y globales), reglas que bloquean o avisan y tareas programadas.
 
 ### Multiempresa
 
@@ -70,9 +71,35 @@ su motivo. Las boletas firmadas no se editan: se reabren con motivo, que queda e
 
 Los eventos de negocio (boleta firmada, orden asignada, unidad liberada de taller, incidente reportado, factura
 timbrada…) generan avisos en la aplicación y mensajes en una bandeja de salida (*outbox*) que se envían por
-correo o WhatsApp según las reglas de cada empresa. Cada hora (`Jobs:ScanIntervalMinutes`) un servicio revisa,
-empresa por empresa, permisos y documentos por vencer, mantenimiento próximo, facturas vencidas, boletas sin
-facturar y existencias bajo mínimo (con llaves de deduplicación para no repetir avisos).
+correo o WhatsApp según las reglas de cada empresa. Cada hora (`Jobs:ScanIntervalMinutes`) `ScheduledJobsRunner`
+revisa, empresa por empresa (`IDailyScanService` dentro de `BeginScope`), permisos, documentos, licencias,
+contratos y tarifarios por vencer, documentos obligatorios faltantes, acciones correctivas, llaves de API,
+mantenimiento, facturas vencidas, boletas sin facturar, existencias bajas, cotizaciones vencidas y autorizaciones
+atrasadas (con llaves de deduplicación para no repetir avisos). Un *advisory lock* de PostgreSQL evita dos
+revisiones a la vez y cada ejecución queda en `scheduled_job_runs` (la plataforma la consulta o la lanza desde
+`plataforma/tareas`). Ver [tareas programadas](automatizacion.md#tareas-programadas).
+
+### Flujos de autorización y reglas de negocio
+
+`AutomationCatalog` (dominio) declara, por documento, los momentos de su ciclo de vida y los **datos** que pueden
+usar las condiciones; `DocumentFacts` los calcula al momento de evaluar. Las definiciones (`WorkflowDefinition`,
+`BusinessRule`) tienen `TenantId` opcional: sin empresa son **globales**, fuera del filtro multiempresa, y cada
+empresa puede desactivar las opcionales (`AutomationOptOut`).
+
+- `IBusinessRules.EnforceAsync` se llama en cada comando que cambia un documento en un momento con reglas. Un
+  bloqueo regresa `422 Rules.Blocked`; su aviso se guarda en un *scope* aparte (`IIsolatedWriter`) porque la
+  operación se revierte. Las reglas que avisan se suman a la misma unidad de trabajo.
+- `IWorkflowEngine` elige el primer flujo que aplica (globales obligatorios, de la empresa, globales opcionales) y
+  crea una `WorkflowInstance` con los pasos copiados de la definición. En boletas y viáticos (`Execute`) la última
+  aprobación hace la transición del documento; en órdenes, cotizaciones, facturas y órdenes de taller (`Unlock`)
+  la acción se detiene con `ApprovalPendingError`, que la API convierte en **`202 Accepted`**
+  (`{ approvalPending, instanceId, message }`), y procede cuando hay una aprobación vigente.
+- Una aprobación vale mientras no cambien los datos del documento: la solicitud guarda una huella SHA-256 de los
+  datos no volátiles (`FactsHash`).
+- Los eventos de dominio (`WorkflowRequestedEvent`, `WorkflowStepAdvancedEvent`, `WorkflowCompletedEvent`) avisan a
+  los aprobadores y a quien solicitó, y aplican la decisión al documento dentro del mismo `SaveChanges`.
+- En el frontend, `BrocalApi` pasa cada respuesta `202` a `ApprovalNotices` (aviso "en espera de autorización") y
+  `br-workflow-panel` muestra el estado en cada documento.
 
 ### Fiscal
 

@@ -1,6 +1,7 @@
 import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { Observable, map, tap } from 'rxjs';
+import { ApprovalNotices } from './approvals';
 import { apiUrl } from './config';
 import { FileCategory, UploadedFile } from './models';
 
@@ -31,17 +32,19 @@ export class TenantHeader {
 export class BrocalApi {
   private readonly http = inject(HttpClient);
   private readonly tenant = inject(TenantHeader);
+  private readonly notices = inject(ApprovalNotices);
 
   get<T>(path: string, query?: Query, options?: CallOptions): Observable<T> {
     return this.http.get<T>(apiUrl(path), { params: toParams(query), headers: this.headers(options) });
   }
 
+  /** A 202 answer (action held by an approval workflow) shows its message; the caller still gets the body. */
   post<T>(path: string, body: unknown = null, options?: CallOptions): Observable<T> {
-    return this.http.post<T>(apiUrl(path), body, { headers: this.headers(options) });
+    return this.http.post<T>(apiUrl(path), body, { headers: this.headers(options) }).pipe(tap((answer) => this.notices.notify(answer)));
   }
 
   put<T>(path: string, body: unknown = null, options?: CallOptions): Observable<T> {
-    return this.http.put<T>(apiUrl(path), body, { headers: this.headers(options) });
+    return this.http.put<T>(apiUrl(path), body, { headers: this.headers(options) }).pipe(tap((answer) => this.notices.notify(answer)));
   }
 
   delete<T>(path: string, query?: Query, options?: CallOptions): Observable<T> {

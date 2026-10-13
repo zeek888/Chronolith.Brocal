@@ -31,6 +31,29 @@
       </div>
     }
 
+    @if (approvals.value(); as a) {
+      @if (a.items.length > 0) {
+        <section class="br-card br-approvals-card">
+          <div class="br-card__header">
+            <h2><mat-icon>approval</mat-icon>{{ 'home.pendingApprovals' | t: { n: a.totalCount } }}</h2>
+            <a mat-button [routerLink]="link('autorizaciones')">{{ 'common.viewAll' | t }}</a>
+          </div>
+          <ul class="br-timeline">
+            @for (item of a.items; track item.id) {
+              <li>
+                <mat-icon>{{ item.overdue ? 'running_with_errors' : 'pending_actions' }}</mat-icon>
+                <div>
+                  <a class="cl-row-link" [routerLink]="link(item.link)">{{ item.reference }} · {{ item.definitionName }}</a>
+                  <small>{{ 'approvals.stepOf' | t: { n: item.currentStep + 1, total: item.stepCount } }} · {{ item.stepName }}@if (item.amount !== null) { · {{ item.amount | money }} }</small>
+                  <small>{{ item.requestedByName }} · {{ item.requestedAt | dt }}</small>
+                </div>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    }
+
     @if (portal.value(); as p) {
       <div class="br-kpis">
         <br-kpi [label]="'portal.ticketsThisMonth' | t" [value]="p.ticketsThisMonth" icon="receipt_long" [detail]="'portal.lastMonth' | t: { n: p.ticketsLastMonth }" />

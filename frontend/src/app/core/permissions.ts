@@ -61,6 +61,8 @@ export const P = {
   notificationsManage: 'notifications.manage',
   integrationsManage: 'integrations.manage',
   integrationsExport: 'integrations.export',
+  automationRead: 'automation.read',
+  automationManage: 'automation.manage',
 } as const;
 
 export type Permission = (typeof P)[keyof typeof P];

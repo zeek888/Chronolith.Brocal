@@ -23,6 +23,7 @@ import { BrocalSession, CanDirective } from '../../core/session';
 import { Dialogs } from '../../shared/dialogs';
 import { SignaturePad } from '../../shared/signature-pad';
 import { KpiCard, PageHeader, StatusChip } from '../../shared/ui';
+import { WorkflowPanel } from '../../shared/workflow-panel';
 
 export interface SignResult {
   blob: Blob;
@@ -81,7 +82,7 @@ export class SignDialog {
  */
 @Component({
   selector: 'br-ticket-detail',
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule, MatTooltipModule, TPipe, EnumPipe, MoneyPipe, NumPipe, DatePipe, DateTimePipe, CanDirective, KpiCard, PageHeader, StatusChip],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule, MatTooltipModule, TPipe, EnumPipe, MoneyPipe, NumPipe, DatePipe, DateTimePipe, CanDirective, KpiCard, PageHeader, StatusChip, WorkflowPanel],
   templateUrl: './ticket-detail.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -99,6 +100,8 @@ export class TicketDetailPage {
   private readonly reload = signal(0);
   protected readonly busy = signal(false);
   protected readonly cost = signal<TicketCost | null>(null);
+  /** A validation request in progress: its approvers validate the ticket. */
+  protected readonly workflowPending = signal(false);
 
   protected readonly ticket = apiResource({
     params: () => ({ id: this.id(), reload: this.reload() }),
@@ -197,6 +200,11 @@ export class TicketDetailPage {
 
   protected loadCost(): void {
     this.api.get<TicketCost>(`tickets/${this.id()}/cost`).subscribe((cost) => this.cost.set(cost));
+  }
+
+  /** A decision of its validation workflow can validate the ticket. */
+  protected refresh(): void {
+    this.reload.update((r) => r + 1);
   }
 
   private async run(action: () => Promise<unknown>): Promise<void> {

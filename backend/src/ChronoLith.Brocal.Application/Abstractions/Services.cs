@@ -196,7 +196,11 @@ public interface IPacGateway
 
 // ---- Notifications --------------------------------------------------------------------------------
 
-/// <summary>Something happened that may notify people according to the rules of the company.</summary>
+/// <summary>
+/// Something happened that may notify people according to the rules of the company. <see cref="ExtraEmails"/> are
+/// addresses chosen by whoever configured the event (a business rule): they receive the e-mail regardless of the
+/// channels of the notification rule.
+/// </summary>
 public sealed record NotificationMessage(
     NotificationEvent Event,
     NotificationSeverity Severity,
@@ -206,12 +210,23 @@ public sealed record NotificationMessage(
     IReadOnlyCollection<Guid>? AssigneeMembershipIds = null,
     Guid? CustomerId = null,
     string? DeduplicationKey = null,
-    Guid? AttachmentFileId = null);
+    Guid? AttachmentFileId = null,
+    IReadOnlyCollection<string>? ExtraEmails = null);
 
 public interface INotificationPublisher
 {
     /// <summary>Adds in-app notifications and outbox messages to the unit of work (saved with the caller).</summary>
     Task PublishAsync(NotificationMessage message, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Writes that must survive the rollback of the current operation: an approval request registered when an action is
+/// held, or the notice of a blocked attempt. The work runs on a separate unit of work of the same company and user.
+/// </summary>
+public interface IIsolatedWriter
+{
+    /// <summary>Runs <paramref name="work"/> with services of a new scope and saves its changes.</summary>
+    Task RunAsync(Func<IServiceProvider, CancellationToken, Task> work, CancellationToken cancellationToken);
 }
 
 public sealed record EmailMessage(string To, string Subject, string HtmlBody, (string FileName, string ContentType, byte[] Content)? Attachment);

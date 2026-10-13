@@ -2,9 +2,11 @@ using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.Automation;
 using ChronoLith.Brocal.Application.Features.Platform;
 using ChronoLith.Brocal.Application.Features.Pricing;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Commercial;
 using ChronoLith.Brocal.Domain.Common;
 using ChronoLith.Brocal.Domain.Fleet;
@@ -61,7 +63,9 @@ internal sealed class SaveTicketCommandHandler(
     IUserContext user,
     IFolioService folios,
     IQuotaGuard quotas,
-    ITenantClock clock) : ICommandHandler<SaveTicketCommand, SaveTicketResult>
+    ITenantClock clock,
+    DocumentFacts facts,
+    IBusinessRules rules) : ICommandHandler<SaveTicketCommand, SaveTicketResult>
 {
     public async Task<Result<SaveTicketResult>> Handle(SaveTicketCommand command, CancellationToken cancellationToken)
     {
@@ -143,6 +147,12 @@ internal sealed class SaveTicketCommandHandler(
                 return Result.Failure<SaveTicketResult>(meters.Error);
             }
 
+            var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.ServiceTicket, ticket.Id, ticket.Folio, await facts.TicketAsync(ticket, ct)), AutomationTrigger.Save, ct);
+            if (checks.IsFailure)
+            {
+                return Result.Failure<SaveTicketResult>(checks.Error);
+            }
+
             await db.SaveChangesAsync(ct);
             return Result.Success(new SaveTicketResult(ticket.Id, ticket.Folio, true, warnings));
         }, cancellationToken);
@@ -150,7 +160,7 @@ internal sealed class SaveTicketCommandHandler(
 
     private async Task<Result<SaveTicketResult>> UpdateAsync(Guid id, SaveTicketCommand command, IReadOnlyList<PricedLine> lines, List<string> warnings, CancellationToken cancellationToken)
     {
-        var ticket = await db.Tickets.Visible(tenant).Include(t => t.Lines).FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+        var ticket = await db.Tickets.Visible(tenant).Include(t => t.Lines).Include(t => t.Photos).FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
         if (ticket is null)
         {
             return TicketErrors.NotFound;
@@ -173,6 +183,12 @@ internal sealed class SaveTicketCommandHandler(
         if (meters.IsFailure)
         {
             return meters.Error;
+        }
+
+        var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.ServiceTicket, ticket.Id, ticket.Folio, await facts.TicketAsync(ticket, cancellationToken)), AutomationTrigger.Save, cancellationToken);
+        if (checks.IsFailure)
+        {
+            return checks.Error;
         }
 
         await db.SaveChangesAsync(cancellationToken);

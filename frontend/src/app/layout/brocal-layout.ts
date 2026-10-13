@@ -83,7 +83,10 @@ export class BrocalLayout implements OnInit, OnDestroy {
     const session = this.session;
     session.permissions();
     const visible = (item: MenuItem) =>
-      (item.platformAdmin ? session.isPlatformAdmin() : !!session.tenant()) && (!item.module || session.hasModule(item.module)) && (item.platformAdmin || session.can(...item.permissions));
+      (item.platformAdmin ? session.isPlatformAdmin() : !!session.tenant()) &&
+      (!item.module || session.hasModule(item.module)) &&
+      (!item.staffOnly || !session.isPortalUser()) &&
+      (item.platformAdmin || session.can(...item.permissions));
     return MENU.map((group) => ({ ...group, items: group.items.filter(visible) })).filter((group) => group.items.length > 0);
   });
 

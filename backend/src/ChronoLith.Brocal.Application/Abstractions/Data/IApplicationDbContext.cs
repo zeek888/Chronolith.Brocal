@@ -1,4 +1,5 @@
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Commercial;
 using ChronoLith.Brocal.Domain.Compliance;
 using ChronoLith.Brocal.Domain.Fiscal;
@@ -40,6 +41,19 @@ public interface IApplicationDbContext
     DbSet<ApiKey> ApiKeys { get; }
 
     DbSet<AccountingSettings> AccountingSettings { get; }
+
+    DbSet<ScheduledJobRun> ScheduledJobRuns { get; }
+
+    // ---- Workflows and business rules ----------------------------------------------------------
+    /// <summary>Company and global definitions (no tenant filter: filter by <c>TenantId == null || TenantId == current</c>).</summary>
+    DbSet<WorkflowDefinition> WorkflowDefinitions { get; }
+
+    DbSet<WorkflowInstance> WorkflowInstances { get; }
+
+    /// <summary>Company and global rules (no tenant filter, like <see cref="WorkflowDefinitions"/>).</summary>
+    DbSet<BusinessRule> BusinessRules { get; }
+
+    DbSet<AutomationOptOut> AutomationOptOuts { get; }
 
     // ---- Commercial -----------------------------------------------------------------------------
     DbSet<Customer> Customers { get; }

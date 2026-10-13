@@ -2,7 +2,9 @@ using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.Automation;
 using ChronoLith.Brocal.Domain.Abstractions;
+using ChronoLith.Brocal.Domain.Automation;
 using ChronoLith.Brocal.Domain.Common;
 using ChronoLith.Brocal.Domain.Fleet;
 using ChronoLith.Brocal.Domain.Operations;
@@ -84,7 +86,8 @@ internal sealed class SaveFuelLoadCommandHandler(
     ITenantContext tenant,
     IUserContext user,
     IFileService files,
-    INotificationPublisher notifications) : ICommandHandler<SaveFuelLoadCommand, FuelLoadDto>
+    INotificationPublisher notifications,
+    IBusinessRules rules) : ICommandHandler<SaveFuelLoadCommand, FuelLoadDto>
 {
     public async Task<Result<FuelLoadDto>> Handle(SaveFuelLoadCommand command, CancellationToken cancellationToken)
     {
@@ -145,6 +148,13 @@ internal sealed class SaveFuelLoadCommandHandler(
         }
 
         await EvaluateAsync(unit, load, cancellationToken);
+
+        var checks = await rules.EnforceAsync(new RuleSubject(AutomationDocument.FuelLoad, load.Id, $"{unit.Code} {load.LoadedAt:dd/MM/yyyy}", DocumentFacts.Fuel(load)),
+            AutomationTrigger.Save, cancellationToken);
+        if (checks.IsFailure)
+        {
+            return checks.Error;
+        }
 
         if (load.IsAnomaly)
         {

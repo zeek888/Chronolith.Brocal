@@ -14,11 +14,12 @@ import { apiResource } from '../../core/resource';
 import { BrocalSession, CanDirective } from '../../core/session';
 import { Dialogs } from '../../shared/dialogs';
 import { PageHeader, StatusChip } from '../../shared/ui';
+import { WorkflowPanel } from '../../shared/workflow-panel';
 
 /** Work order: what, where, when, with which units and crew; its tickets and the dispatch life cycle. */
 @Component({
   selector: 'br-work-order-detail',
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule, TPipe, DatePipe, DateTimePipe, MoneyPipe, NumPipe, CanDirective, PageHeader, StatusChip],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule, TPipe, DatePipe, DateTimePipe, MoneyPipe, NumPipe, CanDirective, PageHeader, StatusChip, WorkflowPanel],
   template: `
     <div class="cl-page">
       @if (order.isLoading()) {
@@ -74,6 +75,8 @@ import { PageHeader, StatusChip } from '../../shared/ui';
             <p class="br-pre">{{ o.instructions }}</p>
           }
         </section>
+
+        <br-workflow-panel document="workOrder" [documentId]="o.summary.id" [version]="o.summary.status" (changed)="reload.update((r) => r + 1)" />
 
         <div class="br-grid br-grid--2">
           <section class="br-card">
@@ -162,7 +165,7 @@ export class WorkOrderDetailPage {
 
   readonly id = input.required<string>();
   protected readonly busy = signal(false);
-  private readonly reload = signal(0);
+  protected readonly reload = signal(0);
 
   protected readonly order = apiResource({
     params: () => ({ id: this.id(), reload: this.reload() }),

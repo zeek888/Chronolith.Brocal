@@ -105,6 +105,8 @@ export const EXPENSE_RECORD: RecordConfig = {
   title: (r) => r['folio'] as string,
   subtitle: (r) => `${(r['employeeName'] as string) ?? ''} · ${r['purpose'] as string}`,
   status: { enum: 'expenseStatus', value: (r) => r['status'] as string },
+  workflow: 'expenseReport',
+  workflowHides: ['approve', 'reject'],
   warnings: (r) => (r['rejectionReason'] ? [`Rechazado: ${r['rejectionReason'] as string}`] : []),
   actions: [
     { key: 'submit', icon: 'send', label: 'expenses.actions.submit', primary: true, permissions: [P.expensesCapture, P.expensesApprove], visible: expenseEditable, run: (ctx, r) => expenseAction(ctx, r, 'submit') },
