@@ -16,6 +16,7 @@ El build de la imagen web verifica las traducciones (`npm run i18n:check`) y com
 | `docker-compose.yml` | Módulo de ChronoLith: `brocal-db`, `brocal-api`, `brocal-web` unidos a la red externa `chronolith-net`. Variables en `.env` (ver `.env.example`). |
 | `docker-compose.prod.yml` | Se combina con el anterior en el servidor: sin puertos publicados, alias `chronolith-brocal-web` para el gateway y variables obligatorias (ver `.env.production.example`). |
 | `docker-compose.standalone.yml` | Brocal independiente con su Keycloak (realm `brocal`, tema de login de ChronoLith) y su PostgreSQL. Variables en `standalone.env` (copia de `.env.standalone.example`), siempre con `--env-file`. |
+| `deploy/docker-compose.yml` | **Producción independiente** en el servidor de ChronoLith (https://brocal.chronolith.com.mx): sin Keycloak propio, usa el de ChronoLith con el realm `brocal`. Variables en `deploy/.env`. Ver [producción](produccion.md). |
 
 ```bash
 # Módulo (desarrollo)
@@ -24,6 +25,8 @@ docker compose up -d --build
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 # Independiente
 docker compose -f docker-compose.standalone.yml --env-file standalone.env up -d --build
+# Independiente en producción (brocal.chronolith.com.mx, Keycloak de ChronoLith): ver produccion.md
+docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
 El modo independiente no debe leer el `.env` de la carpeta: es el del modo módulo y apunta al Keycloak de

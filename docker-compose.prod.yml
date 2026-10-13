@@ -12,7 +12,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       Database__SeedDemoTenant: ${BROCAL_SEED_DEMO:-false}
       Tenancy__RequireVerifiedEmail: "true"
-      Keycloak__RequireHttpsMetadata: "true"
+      # Las llaves se descargan por chronolith-net (KEYCLOAK_INTERNAL_URL, http interno); con "true" la API
+      # rechazaría esa dirección. El emisor de los tokens sigue siendo la URL pública https.
+      Keycloak__RequireHttpsMetadata: "false"
       # Obligatorios: sin ellos Compose se detiene en lugar de usar los valores de desarrollo.
       ConnectionStrings__BrocalDb: Host=brocal-db;Port=5432;Database=chronolith_brocal;Username=${BROCAL_DB_USER:?falta en .env};Password=${BROCAL_DB_PASSWORD:?falta en .env};GSS Encryption Mode=Disable
       Keycloak__AuthServerUrl: ${KEYCLOAK_PUBLIC_URL:?falta en .env, p. ej. https://chronolith.com.mx/auth}

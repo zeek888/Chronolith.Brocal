@@ -86,6 +86,8 @@ docs/       documentación
   avisan (por empresa o globales) y revisión de vencimientos.
 - [Integración con ChronoLith](docs/integracion-chronolith.md): contrato de módulo, desarrollo y producción.
 - [Despliegue](docs/despliegue.md): imágenes, composiciones, configuración, respaldos y lista para producción.
+- [Producción en brocal.chronolith.com.mx](docs/produccion.md): modo independiente en el servidor de ChronoLith con
+  su Keycloak (realm `brocal`), paso a paso.
 
 ## Pendientes conocidos
 

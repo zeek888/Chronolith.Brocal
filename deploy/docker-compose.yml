@@ -1,0 +1,119 @@
+# Brocal en producción, modo independiente, en el servidor de ChronoLith: https://brocal.chronolith.com.mx.
+# Usa el Keycloak de ChronoLith (realm "brocal", ver deploy/keycloak/ensure-realm.sh) por la red chronolith-net;
+# base de datos y archivos propios. El Nginx del servidor termina TLS y reenvía todo a brocal-web, publicado solo
+# en 127.0.0.1. Ver docs/produccion.md.
+#   docker compose -f deploy/docker-compose.yml up -d --build
+# Compose lee las variables de deploy/.env (copia de deploy/.env.example); las marcadas con :? son obligatorias.
+name: brocal
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  brocal-db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chronolith_brocal
+      POSTGRES_USER: ${BROCAL_DB_USER:-brocal}
+      POSTGRES_PASSWORD: ${BROCAL_DB_PASSWORD:?falta en deploy/.env}
+    # Sin puertos en el host; para administrarla: docker compose -f deploy/docker-compose.yml exec brocal-db psql -U brocal chronolith_brocal
+    volumes:
+      - brocal-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging: *logging
+    networks:
+      - internal
+
+  brocal-api:
+    build: ../backend
+    image: chronolith/brocal-api:${BROCAL_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      TZ: ${TZ:-America/Mexico_City}
+      ConnectionStrings__BrocalDb: Host=brocal-db;Port=5432;Database=chronolith_brocal;Username=${BROCAL_DB_USER:-brocal};Password=${BROCAL_DB_PASSWORD:?falta en deploy/.env};GSS Encryption Mode=Disable
+      Database__ApplyMigrationsOnStartup: "true"
+      Database__SeedDemoTenant: ${BROCAL_SEED_DEMO:-false}
+      Database__DemoAdminEmail: ${BROCAL_ADMIN_EMAIL:-admin@brocal.local}
+      Tenancy__Mode: Standalone
+      Tenancy__RequireVerifiedEmail: "true"
+      # Emisor de los tokens: la URL pública de Keycloak. Las llaves y la Admin API se consultan por chronolith-net
+      # (http interno, por eso RequireHttpsMetadata=false; el navegador siempre usa https).
+      Keycloak__AuthServerUrl: ${KEYCLOAK_PUBLIC_URL:-https://chronolith.com.mx/auth}
+      Keycloak__InternalAuthServerUrl: ${KEYCLOAK_INTERNAL_URL:-http://chronolith-keycloak:8080/auth}
+      Keycloak__Realm: ${KEYCLOAK_REALM:-brocal}
+      Keycloak__Audiences__0: brocal-api
+      Keycloak__RequireHttpsMetadata: "false"
+      Keycloak__ClientId: brocal-api
+      Keycloak__ClientSecret: ${KC_BROCAL_API_CLIENT_SECRET:?falta en deploy/.env}
+      # Crea en el realm la cuenta de quien se invita (contraseña temporal); la cuenta de servicio tiene manage-users.
+      Identity__ProvisionUsers: ${BROCAL_PROVISION_USERS:-true}
+      # Sin Shell: el tema de ChronoLith se toma de la paleta incluida en Brocal.
+      Shell__ApiUrl: ""
+      Files__RootPath: /data/files
+      Files__SigningKey: ${BROCAL_FILES_SIGNING_KEY:?falta en deploy/.env (32 o más caracteres aleatorios)}
+      DataProtection__KeysPath: /data/keys
+      Email__Host: ${SMTP_HOST:-}
+      Email__Port: ${SMTP_PORT:-587}
+      Email__User: ${SMTP_USER:-}
+      Email__Password: ${SMTP_PASSWORD:-}
+      # Sin SMTP_FROM, la misma cuenta de SMTP_USER (como el correo del realm).
+      Email__FromAddress: ${SMTP_FROM:-${SMTP_USER:-no-reply@chronolith.com.mx}}
+      Email__FromName: ${SMTP_FROM_NAME:-Brocal}
+      Jobs__Enabled: "true"
+      Cors__AllowedOrigins__0: ${BROCAL_PUBLIC_URL:-https://brocal.chronolith.com.mx}
+    volumes:
+      # Fotos, firmas, PDF y XML timbrados (/data/files) y llaves que cifran contraseñas de PAC y SMTP (/data/keys).
+      - brocal-data:/data
+    depends_on:
+      brocal-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    logging: *logging
+    networks:
+      - internal
+      - chronolith
+
+  brocal-web:
+    build: ../frontend
+    image: chronolith/brocal-web:${BROCAL_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      BROCAL_API_UPSTREAM: http://brocal-api:8080
+      KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL:-https://chronolith.com.mx/auth}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-brocal}
+      KEYCLOAK_CLIENT_ID: brocal-web
+      CHRONOLITH_URL: ${CHRONOLITH_SHELL_URL:-}
+    ports:
+      # Solo para el Nginx del servidor (proxy_pass de deploy/nginx/brocal.chronolith.com.mx.conf).
+      - "127.0.0.1:${BROCAL_WEB_PORT:-8094}:8080"
+    depends_on:
+      brocal-api:
+        condition: service_healthy
+    logging: *logging
+    networks:
+      - internal
+
+networks:
+  internal:
+  # La crea ChronoLith (infra/docker-compose.yml); ahí está Keycloak con el alias chronolith-keycloak.
+  chronolith:
+    external: true
+    name: chronolith-net
+
+volumes:
+  brocal-db-data:
+  brocal-data:

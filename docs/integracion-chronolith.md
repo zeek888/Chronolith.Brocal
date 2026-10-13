@@ -77,3 +77,7 @@ PostgreSQL, API y web, sin ChronoLith ni la red `chronolith-net`. En este modo l
 rol de realm `brocal-platform-admin`; cualquier usuario autenticado entra a las empresas en las que tiene membresía.
 Con `SHELL_API_URL` apuntando a la API de ChronoLith, la opción "Usar el estilo de ChronoLith" toma el tema
 predeterminado del Shell; sin ella se usa la paleta de ChronoLith incluida en Brocal. Ver [despliegue](despliegue.md).
+
+En producción, el modo independiente corre en el servidor de ChronoLith sin Keycloak propio: usa el de ChronoLith con
+un realm `brocal` aparte (cuentas separadas) y se publica en https://brocal.chronolith.com.mx. Ver
+[producción](produccion.md).
