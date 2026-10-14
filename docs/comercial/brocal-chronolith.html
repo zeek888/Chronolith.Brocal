@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brocal · Propuesta comercial · ChronoLith</title>
+<meta name="description" content="Brocal, documentación operativa para empresas de servicios petroleros, como parte de la plataforma ChronoLith.">
+<!--
+  Presentación comercial de Brocal. Ábrela en Edge o Chrome:
+    · Flechas, espacio o clic para avanzar; Inicio / Fin; F para pantalla completa.
+    · Para PDF: Imprimir → Guardar como PDF, con "Gráficos de fondo" activado (una página por diapositiva).
+  Los textos entre corchetes [ … ] son datos por completar antes de enviarla.
+-->
+<style>
+  @font-face { font-family: 'Montserrat'; src: url('assets/montserrat.woff2') format('woff2'); font-weight: 100 900; font-display: block; }
+  @font-face { font-family: 'Inter'; src: url('assets/inter.woff2') format('woff2'); font-weight: 100 900; font-display: block; }
+
+  :root {
+    --navy: #0B365B;
+    --navy-900: #072641;
+    --blue: #2874A6;
+    --cyan: #2C9EC8;
+    --orange: #E58E38;
+    --orange-ink: #A9551A;
+    --ink: #14263A;
+    --body: #3B4E63;
+    --muted: #5D6D7F;
+    --paper: #F4F7FB;
+    --paper-2: #E7EEF6;
+    --card: #FCFDFE;
+    --line: #D3DEEA;
+    --tint: #E2EDF7;
+    --brand-bar: linear-gradient(90deg, #0B365B, #2874A6 60%, #E58E38);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #0A1520; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+  /* ---------- Diapositiva ---------- */
+  .slide {
+    width: 1920px; height: 1080px; position: relative; overflow: hidden;
+    padding: 112px 128px 150px; background: var(--paper);
+    display: flex; flex-direction: column; gap: 48px;
+  }
+  .slide.alt { background: var(--paper-2); }
+  .slide.dark {
+    background:
+      radial-gradient(circle at 88% 10%, rgba(229, 142, 56, .22), transparent 40%),
+      radial-gradient(circle at 6% 94%, rgba(44, 158, 200, .20), transparent 46%),
+      linear-gradient(160deg, #072641 0%, #0B365B 100%);
+    color: #EEF4FA;
+  }
+
+  .eyebrow { font: 700 24px/1.2 'Inter', 'Segoe UI', Arial, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--orange-ink); margin: 0 0 18px; }
+  .dark .eyebrow { color: var(--orange); }
+  h1, h2, h3 { font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif; margin: 0; color: var(--navy); }
+  .dark h1, .dark h2, .dark h3 { color: #F4F8FC; }
+  h2 { font-size: 64px; font-weight: 750; line-height: 1.12; letter-spacing: -.01em; }
+  h2::after { content: ''; display: block; width: 140px; height: 6px; border-radius: 3px; background: var(--brand-bar); margin-top: 28px; }
+  .dark h2::after { background: linear-gradient(90deg, #2C9EC8, #E58E38); }
+  h3 { font-size: 32px; font-weight: 700; line-height: 1.2; }
+  p, li { font-size: 28px; line-height: 1.45; color: var(--body); margin: 0; }
+  .dark p, .dark li { color: #C8D7E5; }
+  .caption { font-size: 24px; line-height: 1.4; color: var(--muted); }
+  .ph { color: var(--orange-ink); font-weight: 600; }
+  .dark .ph { color: var(--orange); }
+
+  /* Pie: marca y número */
+  .footer {
+    position: absolute; left: 128px; right: 128px; bottom: 52px; height: 40px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 24px; color: var(--muted);
+  }
+  .footer .brand { display: flex; align-items: center; gap: 14px; font-weight: 600; }
+  .footer .brand img { width: 36px; height: 36px; }
+  .dark .footer { color: #9DB2C6; }
+
+  /* Iconos */
+  .ic { width: 36px; height: 36px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .badge-ic { width: 72px; height: 72px; border-radius: 20px; background: var(--tint); color: var(--navy); display: grid; place-items: center; flex: none; }
+  .badge-ic .ic { width: 40px; height: 40px; }
+
+  /* Tarjetas */
+  .cards { display: grid; gap: 32px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 40px;
+    box-shadow: 0 10px 30px rgba(11, 54, 91, .07); display: flex; flex-direction: column; gap: 18px;
+  }
+  .card p { font-size: 26px; }
+
+  /* Lista con viñetas de marca */
+  ul.points { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 24px; }
+  ul.points li { position: relative; padding-left: 46px; }
+  ul.points li::before {
+    content: ''; position: absolute; left: 4px; top: 13px; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--orange); box-shadow: 0 0 0 6px rgba(229, 142, 56, .18);
+  }
+
+  /* Texto a la izquierda, imagen a la derecha */
+  .split { display: grid; grid-template-columns: 680px 1fr; gap: 72px; align-items: start; height: 100%; }
+  .split .col { display: flex; flex-direction: column; gap: 44px; }
+  .split .media { display: flex; flex-direction: column; gap: 20px; align-items: stretch; padding-top: 8px; }
+
+  /* Capturas en marco de navegador; por omisión recortan la barra lateral de la app */
+  .browser { border-radius: 18px; overflow: hidden; background: #FFFFFF; border: 1px solid #C9D6E4; box-shadow: 0 24px 60px rgba(7, 38, 65, .20); }
+  .browser .bar { height: 38px; background: #E6ECF3; display: flex; align-items: center; gap: 10px; padding: 0 18px; border-bottom: 1px solid #D3DEEA; }
+  .browser .bar i { width: 12px; height: 12px; border-radius: 50%; background: #BFCBD8; display: block; }
+  .browser .view { position: relative; overflow: hidden; }
+  .browser .view img { position: absolute; top: 0; right: 0; width: 133.334%; display: block; }
+  .browser .view.full img { width: 100%; left: 0; right: auto; }
+
+  /* Celular */
+  .phone { width: 300px; border-radius: 48px; padding: 14px; background: #0F1B27; box-shadow: 0 24px 60px rgba(7, 38, 65, .30); flex: none; }
+  .phone img { width: 100%; display: block; border-radius: 36px; }
+
+  /* ---------- Portada ---------- */
+  .cover { display: grid; grid-template-columns: 760px 1fr; gap: 40px; padding-bottom: 112px; }
+  .cover .text { display: flex; flex-direction: column; justify-content: center; }
+  .cover .logo { width: 230px; margin-bottom: 44px; }
+  .cover h1 { font-size: 150px; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+  .cover .claim { font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif; font-size: 52px; font-weight: 600; line-height: 1.18; color: #F4F8FC; margin-top: 28px; }
+  .cover .sub { font-size: 30px; margin-top: 28px; }
+  .cover .for { font-size: 24px; color: #9DB2C6; margin-top: 44px; }
+  .cover .visual { position: relative; }
+  .cover .visual .browser { position: absolute; right: 0; top: 70px; width: 920px; }
+  .cover .visual .phone { position: absolute; left: 0; bottom: 30px; }
+
+  /* ---------- Proceso en etapas ---------- */
+  .process { display: grid; gap: 32px; position: relative; }
+  /* La línea une los centros del primer y el último círculo (--line-end = ancho de columna − 48px). */
+  .process::before { content: ''; position: absolute; left: 48px; right: var(--line-end, 48px); top: 47px; height: 4px; border-radius: 2px; background: var(--brand-bar); opacity: .45; }
+  .step { position: relative; display: flex; flex-direction: column; gap: 14px; }
+  .step .dot {
+    width: 96px; height: 96px; border-radius: 50%; background: var(--navy); color: #FFFFFF;
+    display: grid; place-items: center; box-shadow: 0 0 0 10px var(--paper); margin-bottom: 14px;
+  }
+  .alt .step .dot { box-shadow: 0 0 0 10px var(--paper-2); }
+  .step .dot .ic { width: 44px; height: 44px; }
+  .step .num { font: 700 24px/1 'Inter', 'Segoe UI', Arial, sans-serif; color: var(--orange-ink); letter-spacing: .08em; }
+  .step p { font-size: 26px; }
+  .band {
+    background: var(--navy); color: #F4F8FC; border-radius: 22px; padding: 30px 40px;
+    font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif; font-size: 32px; font-weight: 600; line-height: 1.3;
+    display: flex; align-items: center; gap: 22px;
+  }
+  .band .ic { width: 44px; height: 44px; color: var(--orange); flex: none; }
+
+  /* ---------- Módulos ---------- */
+  .modules { grid-template-columns: repeat(3, 1fr); }
+  .modules .card { padding: 34px 36px; gap: 14px; }
+  .modules .title { display: flex; align-items: center; gap: 18px; }
+  .modules .badge-ic { width: 60px; height: 60px; border-radius: 16px; }
+  .modules .badge-ic .ic { width: 34px; height: 34px; }
+  .modules p { font-size: 25px; }
+
+  /* ---------- Dos capturas ---------- */
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; }
+  .duo .item { display: flex; flex-direction: column; gap: 22px; }
+  .duo .item div.text { display: flex; flex-direction: column; gap: 8px; }
+
+  /* ---------- ChronoLith ---------- */
+  .family { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .family .label { font-size: 24px; font-weight: 600; color: var(--muted); margin-right: 6px; }
+  .pill { font-size: 26px; font-weight: 600; padding: 12px 26px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); color: var(--navy); }
+  .pill.on { background: var(--navy); border-color: var(--navy); color: #FFFFFF; }
+  .cl-logo { position: absolute; right: 128px; top: 96px; width: 220px; }
+
+  /* ---------- Seguridad ---------- */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .feature { display: flex; gap: 28px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 36px 40px; }
+  .feature div.text { display: flex; flex-direction: column; gap: 10px; }
+  .feature p { font-size: 26px; }
+
+  /* ---------- Planes ---------- */
+  .plans { grid-template-columns: repeat(3, 1fr); align-items: stretch; }
+  .plan { position: relative; }
+  .plan .tag { font-size: 24px; font-weight: 600; color: var(--muted); margin-top: -8px; }
+  .plan .price { font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif; font-size: 44px; font-weight: 700; color: var(--orange-ink); padding: 14px 0 18px; border-bottom: 1px solid var(--line); }
+  .plan.on { border: 3px solid var(--navy); box-shadow: 0 18px 44px rgba(11, 54, 91, .16); }
+  .plan .ribbon { position: absolute; top: -20px; right: 32px; background: var(--orange); color: #14263A; font-size: 24px; font-weight: 700; padding: 6px 18px; border-radius: 999px; }
+
+  /* ---------- Cierre ---------- */
+  .close { display: grid; grid-template-columns: 1fr 640px; gap: 80px; align-items: center; }
+  .close ol { list-style: none; padding: 0; margin: 44px 0 0; display: flex; flex-direction: column; gap: 26px; counter-reset: paso; }
+  .close ol li { counter-increment: paso; display: flex; align-items: center; gap: 24px; font-size: 32px; color: #E3EDF6; }
+  .close ol li::before {
+    content: counter(paso); width: 60px; height: 60px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    background: var(--orange); color: #14263A; font: 700 28px/1 'Montserrat', 'Segoe UI', Arial, sans-serif;
+  }
+  .contact { background: #FCFDFE; border-radius: 28px; padding: 52px; display: flex; flex-direction: column; gap: 20px; box-shadow: 0 30px 70px rgba(0, 0, 0, .30); }
+  .contact img { width: 220px; margin-bottom: 12px; }
+  .contact p { font-size: 30px; color: var(--ink); }
+  .contact .site { font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif; font-weight: 700; color: var(--blue); }
+  .dark .contact .ph { color: var(--orange-ink); }
+
+  /* ---------- Pantalla: una diapositiva a la vez, escalada a la ventana ---------- */
+  @media screen {
+    .slide { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(var(--scale, 1)); }
+    .slide:not(.active) { display: none; }
+  }
+
+  /* ---------- Impresión / PDF: una página por diapositiva ---------- */
+  @page { size: 1920px 1080px; margin: 0; }
+  @media print {
+    html, body { background: none; }
+    .slide { break-after: page; page-break-after: always; }
+    .slide:last-of-type { break-after: auto; page-break-after: auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Iconos de trazo -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5.5" y="4" width="13" height="17" rx="2"/><path d="M9 3h6v3H9z"/><path d="M8.5 11h7M8.5 15h5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.6-3 8-7 10-4-2-7-5.4-7-10V6z"/><path d="M12 8.5V13M12 16.2h.01"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-4M12 16V8M17 16V5"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></symbol>
+  <symbol id="i-invoice" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3L6 21z"/><path d="M9 9h6M9 13h6"/></symbol>
+  <symbol id="i-coins" viewBox="0 0 24 24"><ellipse cx="12" cy="7" rx="6.5" ry="2.8"/><path d="M5.5 7v5c0 1.5 2.9 2.8 6.5 2.8s6.5-1.3 6.5-2.8V7"/><path d="M5.5 12v5c0 1.5 2.9 2.8 6.5 2.8s6.5-1.3 6.5-2.8v-5"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.5 5.5a4 4 0 0 0-5 5L4 16l4 4 5.5-5.5a4 4 0 0 0 5-5L16 12l-2.5-.5L13 9z"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M3 6.5h11v9.5H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.6 14.2c2.4.2 4.3 1.8 4.9 4.8"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l2 2M14 9l2 2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v3.8h3.8"/><path d="M12 8v4l3 2"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-8 6 6 0 0 0-11.4 1.5A3.3 3.3 0 0 0 7 18z"/></symbol>
+  <symbol id="i-flow" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H14a3 3 0 0 1 0 6h-4a3 3 0 0 0 0 6h5.5"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.6 3.5 5.4 3.5 8.5s-1.1 5.9-3.5 8.5c-2.4-2.6-3.5-5.4-3.5-8.5s1.1-5.9 3.5-8.5z"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.2-1-1.6-1-2.6 0-.9.7-1.6 1.7-1.6H17a3.5 3.5 0 0 0 3.5-3.5C20.5 7 16.7 3.5 12 3.5z"/><circle cx="8" cy="11" r="1"/><circle cx="10.5" cy="7.5" r="1"/><circle cx="15" cy="7.5" r="1"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+</svg>
+
+<!-- 1 · Portada -->
+<section class="slide dark cover">
+  <div class="text">
+    <img class="logo" src="assets/chronolith-logo-oscuro.png" alt="ChronoLith · well life-cycle">
+    <p class="eyebrow">Propuesta comercial</p>
+    <h1>Brocal</h1>
+    <p class="claim">De la boleta en campo<br>a la factura cobrada.</p>
+    <p class="sub">Documentación operativa para empresas de servicios petroleros.</p>
+    <p class="for">Preparado para <span class="ph">[Empresa]</span> · <span class="ph">[Fecha]</span></p>
+  </div>
+  <div class="visual">
+    <div class="browser">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <div class="view" style="height:600px"><img src="assets/pantalla-dashboard.png" alt="Dashboard gerencial de Brocal con datos de demostración"></div>
+    </div>
+    <div class="phone"><img src="assets/movil-inicio.png" alt="Inicio del operador de campo en el celular"></div>
+  </div>
+</section>
+
+<!-- 2 · El reto -->
+<section class="slide">
+  <div>
+    <p class="eyebrow">El reto</p>
+    <h2>Entre el servicio y el cobro se pierden<br>tiempo, papel y dinero</h2>
+  </div>
+  <div class="cards" style="grid-template-columns:repeat(4, 1fr)">
+    <div class="card">
+      <div class="badge-ic"><svg class="ic"><use href="#i-clipboard"/></svg></div>
+      <h3>Boletas en papel</h3>
+      <p>Se firman en el pozo, tardan días en llegar a la oficina y a veces llegan incompletas o no llegan.</p>
+    </div>
+    <div class="card">
+      <div class="badge-ic"><svg class="ic"><use href="#i-clock"/></svg></div>
+      <h3>Facturación que espera</h3>
+      <p>Revisar, recapturar y reunir evidencias retrasa la factura y, con ella, el ingreso.</p>
+    </div>
+    <div class="card">
+      <div class="badge-ic"><svg class="ic"><use href="#i-shield"/></svg></div>
+      <h3>Cumplimiento en riesgo</h3>
+      <p>Permisos de las unidades y documentos del personal vencen sin aviso y frenan la operación.</p>
+    </div>
+    <div class="card">
+      <div class="badge-ic"><svg class="ic"><use href="#i-chart"/></svg></div>
+      <h3>Sin visibilidad</h3>
+      <p>La dirección no ve en un solo lugar lo ejecutado, lo facturado y lo cobrado.</p>
+    </div>
+  </div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 3 · La solución -->
+<section class="slide alt">
+  <div>
+    <p class="eyebrow">La solución</p>
+    <h2>Un solo flujo, del campo a la cobranza</h2>
+  </div>
+  <div class="process" style="grid-template-columns:repeat(5, 1fr);--line-end:259px">
+    <div class="step">
+      <div class="dot"><svg class="ic"><use href="#i-calendar"/></svg></div>
+      <span class="num">01</span>
+      <h3>Orden de trabajo</h3>
+      <p>Unidad, cuadrilla, pozo y horario, sin traslapes.</p>
+    </div>
+    <div class="step">
+      <div class="dot"><svg class="ic"><use href="#i-phone"/></svg></div>
+      <span class="num">02</span>
+      <h3>Boleta en campo</h3>
+      <p>Se captura en el celular, aun sin señal, con firma y fotos.</p>
+    </div>
+    <div class="step">
+      <div class="dot"><svg class="ic"><use href="#i-check"/></svg></div>
+      <span class="num">03</span>
+      <h3>Validación</h3>
+      <p>La oficina revisa conceptos y precios del tarifario.</p>
+    </div>
+    <div class="step">
+      <div class="dot"><svg class="ic"><use href="#i-invoice"/></svg></div>
+      <span class="num">04</span>
+      <h3>Factura CFDI 4.0</h3>
+      <p>Las boletas firmadas se facturan en un clic.</p>
+    </div>
+    <div class="step">
+      <div class="dot"><svg class="ic"><use href="#i-coins"/></svg></div>
+      <span class="num">05</span>
+      <h3>Cobranza</h3>
+      <p>Pagos, estimaciones, COPADE y antigüedad de saldos.</p>
+    </div>
+  </div>
+  <div class="band"><svg class="ic"><use href="#i-link"/></svg>Sin recapturar: cada paso toma los datos del anterior y queda en la bitácora.</div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 4 · En campo -->
+<section class="slide">
+  <div class="split" style="grid-template-columns:920px 1fr">
+    <div class="col">
+      <div>
+        <p class="eyebrow">En campo</p>
+        <h2>Boletas en el pozo, aun sin señal</h2>
+      </div>
+      <ul class="points">
+        <li>Formularios por tipo de servicio, con los datos que pide cada cliente.</li>
+        <li>Firma del cliente en pantalla y fotos de evidencia con descripción.</li>
+        <li>Sin conexión, la boleta se guarda en el equipo y se envía al recuperar la señal.</li>
+        <li>Folio consecutivo y PDF con la marca de su empresa.</li>
+        <li>Cada operador ve solo sus órdenes y sus boletas.</li>
+      </ul>
+    </div>
+    <div class="media" style="flex-direction:row;justify-content:flex-end;align-items:flex-start;gap:36px">
+      <div class="phone"><img src="assets/movil-inicio.png" alt="Inicio del operador: nueva boleta, combustible, incidentes y sus órdenes del día"></div>
+      <div class="phone" style="margin-top:60px"><img src="assets/movil-boleta.png" alt="Captura de una boleta nueva en el celular"></div>
+    </div>
+  </div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 5 · En la oficina -->
+<section class="slide">
+  <div class="split">
+    <div class="col">
+      <div>
+        <p class="eyebrow">En la oficina</p>
+        <h2>Boletas completas y verificables</h2>
+      </div>
+      <ul class="points">
+        <li>Precios tomados del tarifario del contrato o del cliente, congelados al guardar.</li>
+        <li>Validación de la oficina antes de facturar, si su empresa la requiere.</li>
+        <li>Cancelaciones y reaperturas con motivo, registradas en la bitácora.</li>
+        <li>Costo de mano de obra con la asistencia de la cuadrilla.</li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="browser">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <div class="view" style="height:640px"><img src="assets/pantalla-boleta.png" alt="Detalle de una boleta firmada con la firma del cliente"></div>
+      </div>
+      <p class="caption">Boleta firmada por el cliente en el pozo, ligada a su orden de trabajo. Datos de demostración.</p>
+    </div>
+  </div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 6 · Facturación y cobranza -->
+<section class="slide">
+  <div class="split">
+    <div class="col">
+      <div>
+        <p class="eyebrow">Facturación y cobranza</p>
+        <h2>De la boleta firmada a la factura</h2>
+      </div>
+      <ul class="points">
+        <li>Factura CFDI 4.0 por cliente a partir de sus boletas firmadas.</li>
+        <li>Carta Porte 3.1 para viajes de autotanque con material peligroso.</li>
+        <li>Complemento de pagos 2.0, antigüedad de saldos y gestión de cobro.</li>
+        <li>Estimaciones a Pemex con seguimiento de COPADE.</li>
+        <li>Pólizas para CONTPAQi Contabilidad y Aspel COI.</li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="browser">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <div class="view" style="height:600px"><img src="assets/pantalla-facturacion.png" alt="Tablero de facturación: ejecutado, facturado y cobrado"></div>
+      </div>
+      <p class="caption">Tablero de facturación: lo ejecutado contra lo facturado y lo cobrado, por mes y por cliente (datos de demostración). El timbrado se conecta al PAC de su empresa durante la implementación.</p>
+    </div>
+  </div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 7 · Cumplimiento -->
+<section class="slide">
+  <div class="split">
+    <div class="col">
+      <div>
+        <p class="eyebrow">Cumplimiento</p>
+        <h2>Ningún documento vence sin aviso</h2>
+      </div>
+      <ul class="points">
+        <li>Semáforo por unidad y por persona contra lo que exige cada contrato o cliente.</li>
+        <li>Revisión automática cada hora y avisos por la aplicación, correo o WhatsApp.</li>
+        <li>Permisos SCT y ASEA, pólizas, DC-3, H2S, exámenes médicos y licencias federales.</li>
+        <li>Paquete documental en ZIP, con carátula, listo para el cliente.</li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="browser">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <div class="view" style="height:600px"><img src="assets/pantalla-cumplimiento.png" alt="Matriz de cumplimiento del personal con semáforo por documento"></div>
+      </div>
+      <p class="caption">Matriz de cumplimiento del personal: H2S, SSPA y examen médico por persona. Datos de demostración.</p>
+    </div>
+  </div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 8 · Módulos -->
+<section class="slide alt">
+  <div>
+    <p class="eyebrow">Todo en un lugar</p>
+    <h2>25 módulos que se activan por empresa</h2>
+  </div>
+  <div class="cards modules">
+    <div class="card">
+      <div class="title"><div class="badge-ic"><svg class="ic"><use href="#i-wrench"/></svg></div><h3>Operación</h3></div>
+      <p>Boletas de servicio · Órdenes de trabajo y programación · Servicios y tarifarios · Tablero de facturación</p>
+    </div>
+    <div class="card">
+      <div class="title"><div class="badge-ic"><svg class="ic"><use href="#i-truck"/></svg></div><h3>Flota y activos</h3></div>
+      <p>Unidades y equipos · Mantenimiento · Permisos por unidad · Combustible · Inventario y almacén</p>
+    </div>
+    <div class="card">
+      <div class="title"><div class="badge-ic"><svg class="ic"><use href="#i-users"/></svg></div><h3>Personal y HSE</h3></div>
+      <p>Expedientes del personal · HSE: incidentes, inspecciones y pláticas · Cuadrillas y asistencia · Viáticos</p>
+    </div>
+    <div class="card">
+      <div class="title"><div class="badge-ic"><svg class="ic"><use href="#i-invoice"/></svg></div><h3>Fiscal y comercial</h3></div>
+      <p>Facturación CFDI 4.0 · Carta Porte · Cobranza y COPADE · Cotizaciones</p>
+    </div>
+    <div class="card">
+      <div class="title"><div class="badge-ic"><svg class="ic"><use href="#i-chart"/></svg></div><h3>Dirección y clientes</h3></div>
+      <p>Dashboard gerencial · Portal del cliente · Reportes mensuales en PDF y Excel</p>
+    </div>
+    <div class="card">
+      <div class="title"><div class="badge-ic"><svg class="ic"><use href="#i-grid"/></svg></div><h3>Plataforma</h3></div>
+      <p>Usuarios y roles · Bitácora · Avisos por correo y WhatsApp · Integraciones: CONTPAQi, Aspel, GPS y Excel · Flujos y reglas</p>
+    </div>
+  </div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 9 · Control -->
+<section class="slide">
+  <div class="split">
+    <div class="col">
+      <div>
+        <p class="eyebrow">Control</p>
+        <h2>Autorizaciones y reglas a la medida</h2>
+      </div>
+      <ul class="points">
+        <li>Flujos de autorización por pasos: quién aprueba, cuántas aprobaciones y en qué plazo.</li>
+        <li>Reglas que bloquean o avisan; por ejemplo, no cerrar una boleta grande sin fotos.</li>
+        <li>Bandeja de autorizaciones con recordatorios automáticos.</li>
+        <li>Bitácora de quién capturó, cambió, firmó, timbró o exportó, y cuándo.</li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="browser">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <div class="view" style="height:600px"><img src="assets/pantalla-flujos.png" alt="Editor de un flujo de autorización con condiciones y pasos"></div>
+      </div>
+      <p class="caption">Ejemplo: los viáticos mayores a $5,000 los revisa Facturación y después los autoriza Dirección.</p>
+    </div>
+  </div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 10 · Dirección y clientes -->
+<section class="slide alt">
+  <div>
+    <p class="eyebrow">Visibilidad</p>
+    <h2>La dirección y sus clientes, siempre al día</h2>
+  </div>
+  <div class="duo">
+    <div class="item">
+      <div class="browser">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <div class="view" style="height:370px"><img src="assets/pantalla-dashboard.png" alt="Dashboard gerencial"></div>
+      </div>
+      <div class="text">
+        <h3>Dashboard gerencial</h3>
+        <p>Utilización e ingreso por unidad, días de boleta a factura, cartera vencida y servicios del mes.</p>
+      </div>
+    </div>
+    <div class="item">
+      <div class="browser">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <div class="view" style="height:370px"><img src="assets/pantalla-portal.png" alt="Portal del cliente"></div>
+      </div>
+      <div class="text">
+        <h3>Portal del cliente</h3>
+        <p>Cada cliente consulta solo lo suyo: servicios, boletas con PDF, facturas y saldo.</p>
+      </div>
+    </div>
+  </div>
+  <p class="caption" style="margin-top:-16px">Pantallas con datos de demostración.</p>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 11 · Parte de ChronoLith -->
+<section class="slide">
+  <img class="cl-logo" src="assets/chronolith-logo.png" alt="ChronoLith · well life-cycle">
+  <div style="max-width:1300px">
+    <p class="eyebrow">Plataforma ChronoLith</p>
+    <h2>Brocal es parte de ChronoLith, el ERP del ciclo de vida del pozo</h2>
+  </div>
+  <div class="family">
+    <span class="label">Módulos de ChronoLith</span>
+    <span class="pill">Actividades de pozo</span>
+    <span class="pill">Aforo</span>
+    <span class="pill on">Brocal</span>
+  </div>
+  <div class="cards" style="grid-template-columns:repeat(3, 1fr)">
+    <div class="card">
+      <div class="badge-ic"><svg class="ic"><use href="#i-layers"/></svg></div>
+      <h3>Dentro de ChronoLith</h3>
+      <p>En el menú de ChronoLith, con el mismo inicio de sesión, tema e idioma, y sus catálogos de pozos, campos e instalaciones.</p>
+    </div>
+    <div class="card">
+      <div class="badge-ic"><svg class="ic"><use href="#i-globe"/></svg></div>
+      <h3>O como sitio propio</h3>
+      <p>En brocal.chronolith.com.mx, para empresas que solo necesitan la operación de servicios.</p>
+    </div>
+    <div class="card">
+      <div class="badge-ic"><svg class="ic"><use href="#i-palette"/></svg></div>
+      <h3>Con la marca de su empresa</h3>
+      <p>Logotipo, colores y tipografía propios en la aplicación, el portal del cliente y los PDF.</p>
+    </div>
+  </div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 12 · Seguridad -->
+<section class="slide alt">
+  <div>
+    <p class="eyebrow">Seguridad</p>
+    <h2>Su información, protegida y bajo control</h2>
+  </div>
+  <div class="grid2">
+    <div class="feature">
+      <div class="badge-ic"><svg class="ic"><use href="#i-key"/></svg></div>
+      <div class="text"><h3>Acceso seguro</h3><p>Inicio de sesión con Keycloak, política de contraseñas y bloqueo ante intentos fallidos.</p></div>
+    </div>
+    <div class="feature">
+      <div class="badge-ic"><svg class="ic"><use href="#i-lock"/></svg></div>
+      <div class="text"><h3>Información separada por empresa</h3><p>Cada empresa ve solo sus datos; cada cliente, solo los suyos en el portal.</p></div>
+    </div>
+    <div class="feature">
+      <div class="badge-ic"><svg class="ic"><use href="#i-users"/></svg></div>
+      <div class="text"><h3>Roles y permisos</h3><p>Plantillas por puesto (oficina, supervisor, operador, dirección…), ajustables permiso por permiso.</p></div>
+    </div>
+    <div class="feature">
+      <div class="badge-ic"><svg class="ic"><use href="#i-history"/></svg></div>
+      <div class="text"><h3>Trazabilidad</h3><p>Bitácora de cada cambio con sus valores anteriores y nuevos; contraseñas de PAC y correo cifradas.</p></div>
+    </div>
+  </div>
+  <div class="band"><svg class="ic"><use href="#i-cloud"/></svg>Servicio en la nube con HTTPS, administrado y actualizado por ChronoLith.</div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 13 · Implementación -->
+<section class="slide">
+  <div>
+    <p class="eyebrow">Implementación</p>
+    <h2>Un arranque guiado, por etapas</h2>
+  </div>
+  <div class="process" style="grid-template-columns:repeat(4, 1fr);gap:48px;--line-end:332px">
+    <div class="step">
+      <div class="dot"><svg class="ic"><use href="#i-clipboard"/></svg></div>
+      <span class="num">ETAPA 1</span>
+      <h3>Diagnóstico</h3>
+      <p>Revisamos sus servicios, contratos, tarifarios y los documentos que le piden sus clientes.</p>
+    </div>
+    <div class="step">
+      <div class="dot"><svg class="ic"><use href="#i-grid"/></svg></div>
+      <span class="num">ETAPA 2</span>
+      <h3>Configuración</h3>
+      <p>Alta de la empresa con su marca, usuarios y roles, catálogos y tipos de servicio.</p>
+    </div>
+    <div class="step">
+      <div class="dot"><svg class="ic"><use href="#i-phone"/></svg></div>
+      <span class="num">ETAPA 3</span>
+      <h3>Piloto</h3>
+      <p>Una cuadrilla captura en campo y ajustamos formularios, flujos y reglas.</p>
+    </div>
+    <div class="step">
+      <div class="dot"><svg class="ic"><use href="#i-check"/></svg></div>
+      <span class="num">ETAPA 4</span>
+      <h3>Operación</h3>
+      <p>Arranque general, facturación y capacitación para oficina y dirección.</p>
+    </div>
+  </div>
+  <div class="band"><svg class="ic"><use href="#i-wrench"/></svg>Todo se configura desde la aplicación, sin desarrollos a la medida.</div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 14 · Inversión -->
+<section class="slide alt">
+  <div>
+    <p class="eyebrow">Inversión</p>
+    <h2>Suscripción mensual por empresa</h2>
+  </div>
+  <div class="cards plans">
+    <div class="card plan">
+      <h3>Esencial</h3>
+      <p class="tag">Operación de servicios</p>
+      <p class="price"><span class="ph">[$ __ MXN / mes]</span></p>
+      <p>Boletas de servicio, órdenes de trabajo y programación, servicios y tarifarios, tablero de facturación, unidades y equipos, cuadrillas, expedientes de personal y avisos.</p>
+    </div>
+    <div class="card plan">
+      <h3>Operación</h3>
+      <p class="tag">Activos y cumplimiento</p>
+      <p class="price"><span class="ph">[$ __ MXN / mes]</span></p>
+      <p>Todo lo de Esencial, más mantenimiento, permisos por unidad, combustible, inventario y almacén, HSE y viáticos.</p>
+    </div>
+    <div class="card plan on">
+      <span class="ribbon">Recomendado</span>
+      <h3>Integral</h3>
+      <p class="tag">Fiscal y dirección</p>
+      <p class="price"><span class="ph">[$ __ MXN / mes]</span></p>
+      <p>Todo lo de Operación, más facturación CFDI 4.0, Carta Porte, cobranza y COPADE, cotizaciones, dashboard gerencial, portal del cliente, reportes e integraciones.</p>
+    </div>
+  </div>
+  <p class="caption">Todos los planes incluyen usuarios y roles, bitácora, flujos y reglas de negocio, hospedaje y actualizaciones. <span class="ph">[Usuarios incluidos y condiciones]</span></p>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<!-- 15 · Siguientes pasos -->
+<section class="slide dark">
+  <div class="close" style="height:100%">
+    <div>
+      <p class="eyebrow">Siguientes pasos</p>
+      <h2>Veamos Brocal con sus propios servicios</h2>
+      <ol>
+        <li>Demostración con un caso real de su operación.</li>
+        <li>Piloto con una cuadrilla en campo.</li>
+        <li>Propuesta formal y arranque.</li>
+      </ol>
+    </div>
+    <div class="contact">
+      <img src="assets/chronolith-logo.png" alt="ChronoLith · well life-cycle">
+      <p><b><span class="ph">[Nombre]</span></b> · <span class="ph">[Puesto]</span></p>
+      <p><span class="ph">[correo@chronolith.com.mx]</span></p>
+      <p><span class="ph">[Teléfono]</span></p>
+      <p class="site">brocal.chronolith.com.mx</p>
+    </div>
+  </div>
+  <div class="footer"><span class="brand"><img src="assets/brocal-icono.svg" alt="">Brocal · ChronoLith</span><span class="num"></span></div>
+</section>
+
+<script>
+  // Navegación: una diapositiva a la vez, escalada a la ventana; el número va en la URL (#3).
+  const slides = [...document.querySelectorAll('.slide')];
+  slides.forEach((slide, k) => {
+    const num = slide.querySelector('.footer .num');
+    if (num) num.textContent = `${String(k + 1).padStart(2, '0')} / ${slides.length}`;
+  });
+  let current = 0;
+  function fit() {
+    const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    document.documentElement.style.setProperty('--scale', String(scale));
+  }
+  function show(index) {
+    current = Math.max(0, Math.min(slides.length - 1, index));
+    slides.forEach((slide, k) => slide.classList.toggle('active', k === current));
+    history.replaceState(null, '', `#${current + 1}`);
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('keydown', (event) => {
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(event.key)) { event.preventDefault(); show(current + 1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(event.key)) { event.preventDefault(); show(current - 1); }
+    else if (event.key === 'Home') show(0);
+    else if (event.key === 'End') show(slides.length - 1);
+    else if (event.key === 'f' || event.key === 'F') document.documentElement.requestFullscreen?.();
+  });
+  window.addEventListener('click', (event) => show(current + (event.clientX > window.innerWidth / 3 ? 1 : -1)));
+  fit();
+  show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+</script>
+</body>
+</html>

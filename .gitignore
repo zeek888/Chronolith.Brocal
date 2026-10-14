@@ -1,5 +1,8 @@
 ## ChronoLith
 .env
+# Instrucciones y permisos personales de Claude Code (los del equipo: CLAUDE.md y .claude/settings.json).
+CLAUDE.local.md
+.claude/settings.local.json
 dist/
 .angular/
 coverage/
