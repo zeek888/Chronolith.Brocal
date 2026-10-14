@@ -13,7 +13,9 @@ Documentación en `docs/`: `arquitectura.md`, `modulos.md`, `administracion.md`,
 - `backend/`: .NET 10 (`ChronoLith.Brocal.slnx`). `src/`: Domain, Application, Infrastructure y Api. `tests/`:
   Domain.UnitTests, ArchitectureTests e IntegrationTests (Testcontainers; requieren Docker).
 - `frontend/`: Angular 22 sin zone.js, Material 3, Native Federation y Transloco (scope `brocal`).
-- `deploy/`: producción. `infra/keycloak/`: realm y tema del modo independiente local. `scripts/`: utilidades.
+- `deploy/`: producción; `deploy/update.sh` actualiza el servidor (git pull, respaldo si cambia la API, imágenes de
+  una en una, comprobación y `--revertir`). `infra/keycloak/`: realm y tema del modo independiente local.
+  `scripts/`: utilidades.
 
 ## Comandos
 
@@ -66,3 +68,5 @@ Docker local:
 - Al terminar un cambio: compila, corre las pruebas que apliquen y `npm run i18n:check` si tocaste el frontend;
   actualiza `docs/` si cambió el comportamiento.
 - Producción: sigue `docs/produccion.md` y no ejecutes nada en el servidor sin pedirlo.
+
+Si un cambio altera comandos, estructura o convenciones descritas aquí, actualiza este archivo en el mismo cambio

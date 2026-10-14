@@ -31,6 +31,7 @@ Archivos de este despliegue, en [deploy/](../deploy):
 | `deploy/.env.example` | Variables del servidor; se copia a `deploy/.env`. |
 | `deploy/keycloak/ensure-realm.sh` | Crea o actualiza el realm `brocal` en el Keycloak de ChronoLith. |
 | `deploy/nginx/brocal.chronolith.com.mx.conf` | Sitio para el Nginx del servidor. |
+| `deploy/update.sh` | Actualiza Brocal: código, respaldo de la base, imágenes y comprobación; `--revertir` vuelve a la versión anterior. |
 
 ## Requisitos
 
@@ -167,18 +168,54 @@ sap-pozos siguen funcionando**.
 
 ## Operación
 
-**Actualizar** (respalda antes; la API aplica sus migraciones al arrancar):
+**Actualizar:**
 
 ```bash
-cd /opt/brocal && git pull
-docker compose -f deploy/docker-compose.yml up -d --build --wait
+cd /opt/brocal && bash deploy/update.sh
 ```
 
-El sitio de Nginx (`/etc/nginx/sites-available/brocal.chronolith.com.mx`) ya incluye los cambios de certbot: si
-modificas `deploy/nginx/brocal.chronolith.com.mx.conf`, aplica el cambio a mano en ese archivo en lugar de volver a
-copiarlo.
+El script ([deploy/update.sh](../deploy/update.sh)):
 
-**Respaldos.** Respalda juntos la base de datos y los archivos:
+1. Trae el código (`git pull --ff-only`). Se detiene si el servidor tiene cambios locales en archivos del
+   repositorio; un `chmod` no cuenta. Si el pull trae otra versión del script, sigue con la nueva.
+2. Compila las imágenes de la web y de la API, de una en una. Antes exige 2 GB libres en el disco de Docker
+   (`BROCAL_MIN_FREE_GB`) y avisa si hay menos de 4 GB de RAM y swap disponibles (`BROCAL_MIN_MEMORY_GB`), lo que
+   puede pedir la compilación de Angular.
+3. Si cambió la imagen de la API, respalda la base en `backups/`, porque la API aplica sus migraciones al arrancar.
+   Conserva los 10 respaldos más recientes (`BROCAL_BACKUPS_KEEP`; 0 los conserva todos).
+4. Recrea solo los contenedores que cambiaron, espera a que estén sanos y comprueba `http://127.0.0.1:8094`
+   (página 200, `config.json` 200 y `/api/me/context` 401). Si algo falla, muestra el estado y la bitácora de la
+   API, y termina con error.
+5. Guarda las imágenes reemplazadas con la etiqueta `anterior`. Las de hace dos actualizaciones se borran si ya no
+   las usa nada; las imágenes de otros proyectos del servidor no se tocan.
+6. Avisa si cambió `deploy/keycloak/` (ejecuta entonces `ensure-realm.sh`), si cambió `deploy/nginx/` o si
+   `deploy/.env.example` trae variables que no están en `deploy/.env`.
+
+Si las imágenes no cambiaron, no hace respaldo y solo recrea los contenedores cuya configuración cambió en
+`deploy/.env`.
+
+- Ejecútalo como el usuario dueño de `/opt/brocal`, con acceso a docker y sin `sudo`. En una conexión inestable,
+  hazlo dentro de `tmux`; si se corta a medias, vuelve a ejecutarlo.
+- `bash deploy/update.sh --sin-pull` compila y despliega el código que ya está en el servidor.
+- `bash deploy/update.sh --revertir` intercambia las imágenes actuales con las `anterior`: repetirlo regresa a las
+  nuevas. No toca la base ni los archivos. Si la versión nueva aplicó migraciones que la anterior no admite,
+  restaura el respaldo de `backups/` previo a la actualización (ver *Respaldos*); se pierde lo que se haya guardado
+  después.
+- A mano, sin el script (respalda antes la base):
+
+  ```bash
+  cd /opt/brocal && git pull
+  docker compose -f deploy/docker-compose.yml build brocal-web && docker compose -f deploy/docker-compose.yml build brocal-api
+  docker compose -f deploy/docker-compose.yml up -d --wait
+  ```
+
+El sitio de Nginx (`/etc/nginx/sites-available/brocal.chronolith.com.mx`) ya incluye los cambios de certbot: si
+cambia `deploy/nginx/brocal.chronolith.com.mx.conf`, aplica el cambio a mano en ese archivo en lugar de volver a
+copiarlo (`git diff` muestra qué cambió) y ejecuta `sudo nginx -t && sudo systemctl reload nginx`.
+
+**Respaldos.** `deploy/update.sh` respalda la base en `backups/brocal-AAAAMMDD-HHMMSS.dump` antes de cada
+actualización de la API (solo el dueño puede leerlos); no respalda los archivos, que la actualización no modifica.
+Para un respaldo completo, respalda juntos la base de datos y los archivos:
 
 ```bash
 # Base de datos (todas las empresas)
@@ -189,6 +226,9 @@ docker run --rm -v brocal_brocal-data:/data:ro -v "$PWD":/backup alpine tar czf 
 ```
 
 - Ajusta el usuario de `pg_dump` si cambiaste `BROCAL_DB_USER`.
+- Para restaurar la base:
+  `docker compose -f deploy/docker-compose.yml exec -T brocal-db pg_restore -U brocal -d chronolith_brocal --clean --if-exists < backups/brocal-AAAAMMDD-HHMMSS.dump`.
+- Copia también los respaldos fuera del servidor: `backups/` está en el mismo disco que la base.
 - Los CFDI timbrados deben conservarse 5 años.
 - Sin `/data/keys` no se pueden descifrar las contraseñas de PAC y SMTP que guardan las empresas.
 - Las cuentas de usuario viven en el Keycloak de ChronoLith: su respaldo (`docs/deploy.md` de ChronoLith) incluye el
