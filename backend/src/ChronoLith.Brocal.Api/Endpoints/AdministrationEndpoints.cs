@@ -10,6 +10,7 @@ using ChronoLith.Brocal.Application.Features.Tickets;
 using ChronoLith.Brocal.Domain.Abstractions;
 using ChronoLith.Brocal.Domain.Operations;
 using ChronoLith.Brocal.Domain.Platform;
+using ChronoLith.Licensing.AspNetCore;
 
 namespace ChronoLith.Brocal.Api.Endpoints;
 
@@ -41,7 +42,8 @@ internal sealed class NotificationEndpoints : IEndpoint
 
         mine.MapPost("read", async (ReadRequest body, ICommandHandler<MarkNotificationsReadCommand, int> handler, CancellationToken ct) =>
                 (await handler.Handle(new MarkNotificationsReadCommand(body.Ids), ct)).ToOk())
-            .WithSummary("Marca como leídas las notificaciones indicadas (o todas si no se envían ids).");
+            .WithSummary("Marca como leídas las notificaciones indicadas (o todas si no se envían ids).")
+            .AllowWhenLicenseExpired();
 
         var group = app.MapGroup("notifications").WithTags("Notificaciones").RequirePermission(Permissions.NotificationsManage);
 

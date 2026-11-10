@@ -65,6 +65,7 @@ public sealed record FiscalProfileDto(
 
 public sealed record PermissionDto(string Code, string Name, string NameEn, string? Description, string? DescriptionEn);
 
+/// <param name="Licensed">The license of the installation grants it (always true in module mode).</param>
 public sealed record ModuleDto(
     string Code,
     int Number,
@@ -76,7 +77,8 @@ public sealed record ModuleDto(
     string Icon,
     bool IsCore,
     IReadOnlyList<string> DependsOn,
-    IReadOnlyList<PermissionDto> Permissions)
+    IReadOnlyList<PermissionDto> Permissions,
+    bool Licensed = true)
 {
     public static ModuleDto From(ModuleDefinition module) => new(
         module.Code,

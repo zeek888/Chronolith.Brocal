@@ -1,7 +1,9 @@
 using System.Text.Json;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.Platform;
 using ChronoLith.Brocal.Domain.Abstractions;
 using ChronoLith.Brocal.Domain.Automation;
+using ChronoLith.Licensing.AspNetCore;
 
 namespace ChronoLith.Brocal.Api.Extensions;
 
@@ -41,6 +43,19 @@ public static class ResultExtensions
         }
 
         var extensions = new Dictionary<string, object?> { ["code"] = error.Code };
+
+        // Limit of the ChronoLith license (standalone mode): the frontends translate it by its problem type.
+        if (error is LicenseLimitError limit)
+        {
+            extensions["key"] = limit.Key;
+            extensions["limit"] = limit.Limit;
+            return Results.Problem(
+                type: LicenseProblemTypes.LimitReached,
+                title: "Límite de la licencia",
+                detail: limit.Description,
+                statusCode: StatusCodes.Status403Forbidden,
+                extensions: extensions);
+        }
 
         if (error is ValidationError validation)
         {

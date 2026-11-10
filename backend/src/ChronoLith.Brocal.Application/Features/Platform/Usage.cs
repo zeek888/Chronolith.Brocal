@@ -6,7 +6,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ChronoLith.Brocal.Application.Features.Platform;
 
-/// <summary>Quota checks before creating users, units, employees, tickets, files or API keys.</summary>
+/// <summary>
+/// Quota checks before creating users, units, employees, tickets, files or API keys: first the quota of the company,
+/// then the limit of the license of the installation (<see cref="ILicenseLimits"/>). Users are checked against the
+/// license by the callers, which know the e-mail (a person already counted in another company fits).
+/// </summary>
 public interface IQuotaGuard
 {
     Task<UsageDto> UsageAsync(CancellationToken cancellationToken);
@@ -24,7 +28,7 @@ public interface IQuotaGuard
     Task<Result> EnsureStorageAsync(long additionalBytes, CancellationToken cancellationToken);
 }
 
-internal sealed class QuotaGuard(IApplicationDbContext db, ITenantContext tenantContext, ITenantClock clock) : IQuotaGuard
+internal sealed class QuotaGuard(IApplicationDbContext db, ITenantContext tenantContext, ITenantClock clock, ILicenseLimits license) : IQuotaGuard
 {
     private TenantQuotas Quotas => tenantContext.Tenant.Quotas;
 
@@ -59,42 +63,44 @@ internal sealed class QuotaGuard(IApplicationDbContext db, ITenantContext tenant
     public async Task<Result> EnsureCanAddUnitAsync(CancellationToken cancellationToken) =>
         Quotas.MaxUnits is { } limit && await db.Units.CountAsync(u => u.IsActive, cancellationToken) >= limit
             ? TenantErrors.QuotaExceeded("unidades", limit)
-            : Result.Success();
+            : await license.EnsureCanAddAsync(ILicenseLimits.Units, cancellationToken);
 
     public async Task<Result> EnsureCanAddEmployeeAsync(CancellationToken cancellationToken) =>
         Quotas.MaxEmployees is { } limit && await db.Employees.CountAsync(e => e.IsActive, cancellationToken) >= limit
             ? TenantErrors.QuotaExceeded("empleados", limit)
-            : Result.Success();
+            : await license.EnsureCanAddAsync(ILicenseLimits.Employees, cancellationToken);
 
     public async Task<Result> EnsureCanAddTicketAsync(CancellationToken cancellationToken)
     {
-        if (Quotas.MaxTicketsPerMonth is not { } limit)
+        if (Quotas.MaxTicketsPerMonth is { } limit)
         {
-            return Result.Success();
+            var monthStart = clock.StartOfDay(new DateOnly(clock.Today.Year, clock.Today.Month, 1));
+            if (await db.Tickets.CountAsync(t => t.CreatedAt >= monthStart, cancellationToken) >= limit)
+            {
+                return TenantErrors.QuotaExceeded("boletas del mes", limit);
+            }
         }
 
-        var monthStart = clock.StartOfDay(new DateOnly(clock.Today.Year, clock.Today.Month, 1));
-        return await db.Tickets.CountAsync(t => t.CreatedAt >= monthStart, cancellationToken) >= limit
-            ? TenantErrors.QuotaExceeded("boletas del mes", limit)
-            : Result.Success();
+        return await license.EnsureCanAddAsync(ILicenseLimits.Tickets, cancellationToken);
     }
 
     public async Task<Result> EnsureCanAddApiKeyAsync(CancellationToken cancellationToken) =>
         Quotas.MaxApiKeys is { } limit && await db.ApiKeys.CountAsync(k => !k.IsRevoked, cancellationToken) >= limit
             ? TenantErrors.QuotaExceeded("llaves de API", limit)
-            : Result.Success();
+            : await license.EnsureCanAddAsync(ILicenseLimits.ApiKeys, cancellationToken);
 
     public async Task<Result> EnsureStorageAsync(long additionalBytes, CancellationToken cancellationToken)
     {
-        if (Quotas.MaxStorageMb is not { } limitMb)
+        if (Quotas.MaxStorageMb is { } limitMb)
         {
-            return Result.Success();
+            var used = await db.Files.SumAsync(f => (long?)f.SizeBytes, cancellationToken) ?? 0;
+            if (used + additionalBytes > limitMb * 1024L * 1024L)
+            {
+                return TenantErrors.QuotaExceeded("almacenamiento (MB)", limitMb);
+            }
         }
 
-        var used = await db.Files.SumAsync(f => (long?)f.SizeBytes, cancellationToken) ?? 0;
-        return used + additionalBytes > limitMb * 1024L * 1024L
-            ? TenantErrors.QuotaExceeded("almacenamiento (MB)", limitMb)
-            : Result.Success();
+        return await license.EnsureStorageAsync(additionalBytes, cancellationToken);
     }
 
     private Task<int> CountUsersAsync(bool portal, CancellationToken cancellationToken) =>

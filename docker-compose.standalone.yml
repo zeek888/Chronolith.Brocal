@@ -106,7 +106,17 @@ services:
       Keycloak__ClientId: brocal-api
       Keycloak__ClientSecret: ${KC_BROCAL_API_CLIENT_SECRET:-brocal-api-dev-secret}
       Identity__ProvisionUsers: "true"
+      # Opcional: conexión a un Shell de ChronoLith (tema y catálogos compartidos). Con la cuenta de servicio del
+      # realm chronolith (rol chronolith-module-registrar) se replica el catálogo maestro y se envían los cambios.
       Shell__ApiUrl: ${SHELL_API_URL:-}
+      Shell__AuthServerUrl: ${SHELL_KEYCLOAK_URL:-}
+      Shell__Realm: ${SHELL_REALM:-chronolith}
+      Shell__ClientId: ${SHELL_CLIENT_ID:-}
+      Shell__ClientSecret: ${SHELL_CLIENT_SECRET:-}
+      Jobs__CatalogFeedMinutes: ${CATALOG_FEED_MINUTES:-2}
+      # Con la misma conexión, Brocal publica sus indicadores en el Shell; el enlace de cada valor apunta a esta URL
+      # pública (solo si es https).
+      Indicators__PublicUrl: ${BROCAL_PUBLIC_URL:-}
       Files__RootPath: /data/files
       Files__SigningKey: ${BROCAL_FILES_SIGNING_KEY:-brocal-dev-signing-key-change-me-0123456789abcdef}
       DataProtection__KeysPath: /data/keys
@@ -116,6 +126,9 @@ services:
       Email__Password: ${SMTP_PASSWORD:-}
       Email__FromAddress: ${SMTP_FROM:-no-reply@brocal.local}
       Cors__AllowedOrigins__0: ${BROCAL_PUBLIC_URL:-http://localhost:${WEB_PORT:-4303}}
+      # Licencia de ChronoLith: sin una válida la API no arranca. Por omisión, la de desarrollo, que solo se acepta
+      # mientras KEYCLOAK_PUBLIC_URL sea localhost; en un servidor define LICENSE_KEY en standalone.env.
+      License__Key: ${LICENSE_KEY:-eyJhbGciOiJFUzI1NiIsInR5cCI6ImNocm9ub2xpdGgtbGljZW5zZSIsImtpZCI6IjliM2RjNWM5N2UwMjY3M2MifQ.eyJpZCI6IjM1OGE4YTUwLTUwZjgtNDIzNy1hOGRmLWU4NzlmMDY4MTEzNSIsImN1c3RvbWVyIjoiQ2hyb25vTGl0aCAtIGRlc2Fycm9sbG8iLCJpc3N1ZWRBdCI6IjIwMjYtMTEtMDZUMTc6NTk6NTcuNjcwNzkyMSswMDowMCIsImV4cGlyZXNBdCI6IjIwMjktMTItMzEiLCJncmFjZURheXMiOjMwLCJkZXZlbG9wbWVudCI6dHJ1ZSwicHJvZHVjdHMiOnsiKiI6eyJsaW1pdHMiOnt9fX0sIm5vdGVzIjoiU29sbyBkZXNhcnJvbGxvIGxvY2FsIChsb2NhbGhvc3QpLiBObyB2YWxpZGEgZW4gc2Vydmlkb3Jlcy4ifQ.EYiF9jJwfAlD-hczEa210SbFD4YVsz22v1eUc5ZLWNeI7SUV_SXjXPGpH2KqOehPf4pS6oXgtDmR2GVnjjP5hQ}
     volumes:
       - brocal-data:/data
     depends_on:

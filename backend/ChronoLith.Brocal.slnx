@@ -6,6 +6,7 @@
     <Project Path="src/ChronoLith.Brocal.Infrastructure/ChronoLith.Brocal.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ChronoLith.Brocal.Application.UnitTests/ChronoLith.Brocal.Application.UnitTests.csproj" />
     <Project Path="tests/ChronoLith.Brocal.ArchitectureTests/ChronoLith.Brocal.ArchitectureTests.csproj" />
     <Project Path="tests/ChronoLith.Brocal.Domain.UnitTests/ChronoLith.Brocal.Domain.UnitTests.csproj" />
     <Project Path="tests/ChronoLith.Brocal.IntegrationTests/ChronoLith.Brocal.IntegrationTests.csproj" />

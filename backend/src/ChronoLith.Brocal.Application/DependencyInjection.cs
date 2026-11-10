@@ -43,6 +43,8 @@ public static class DependencyInjection
         services.AddScoped<ITenantClock, TenantClock>();
         services.AddScoped<INotificationPublisher, NotificationPublisher>();
         services.AddScoped<IQuotaGuard, QuotaGuard>();
+        services.AddScoped<ILicenseLimits, LicenseLimits>();
+        services.AddSingleton<ILicensedModules, LicensedModules>();
         services.AddScoped<IDailyScanService, DailyScanService>();
         services.AddScoped<IDocumentBrandingProvider, DocumentBrandingProvider>();
         services.AddScoped<TicketPdfService>();
@@ -55,6 +57,15 @@ public static class DependencyInjection
         services.AddScoped<Features.Invoicing.InvoiceAuthorization>();
         services.AddScoped<Features.Invoicing.InvoicePdfService>();
         services.AddScoped<Features.Integrations.IApiKeyAuthenticator, Features.Integrations.ApiKeyAuthenticator>();
+
+        // Shared catalogs of ChronoLith: replica fed by the change feed and push of linked records to the master.
+        services.AddScoped<Features.SharedCatalogs.CatalogFeedConsumer>();
+        services.AddScoped<Features.SharedCatalogs.MasterCatalogSync>();
+        services.AddScoped<ICatalogLinkReconciler, Features.SharedCatalogs.LinkedRecordsReconciler>();
+
+        // Indicators published to the Shell per well or facility (outbox processed in the background).
+        services.AddScoped<IIndicatorDataSource, Features.Indicators.IndicatorDataLoader>();
+        services.AddScoped<Features.Indicators.IndicatorPublisher>();
 
         // Workflows and business rules.
         services.AddScoped<Features.Automation.AudienceResolver>();

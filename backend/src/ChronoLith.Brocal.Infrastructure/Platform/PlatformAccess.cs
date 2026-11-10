@@ -24,6 +24,24 @@ public sealed class ShellOptions
 
     /// <summary>Require the Shell permission <c>brocal.access</c> (otherwise any authenticated user may use Brocal).</summary>
     public bool RequireAccessPermission { get; init; } = true;
+
+    /// <summary>
+    /// Standalone mode connected to a Shell: service account of the realm <c>chronolith</c> (role
+    /// <c>chronolith-module-registrar</c>) that reads the change feed and pushes to the master. Empty in module mode,
+    /// where the service account of the module itself (<c>Keycloak:ClientId</c>) is used.
+    /// </summary>
+    public string? AuthServerUrl { get; init; }
+
+    public string Realm { get; init; } = "chronolith";
+
+    public string? ClientId { get; init; }
+
+    public string? ClientSecret { get; init; }
+
+    /// <summary>The service account of the Shell is its own (standalone) instead of the module's (<c>Keycloak:*</c>).</summary>
+    public bool HasOwnServiceAccount => !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret) && !string.IsNullOrWhiteSpace(AuthServerUrl);
+
+    public string ServiceAccountTokenUrl => $"{AuthServerUrl?.TrimEnd('/')}/realms/{Realm}/protocol/openid-connect/token";
 }
 
 public sealed class PlatformUnavailableException(string message, Exception? inner = null) : Exception(message, inner);

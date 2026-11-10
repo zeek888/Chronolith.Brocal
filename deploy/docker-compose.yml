@@ -56,8 +56,17 @@ services:
       Keycloak__ClientSecret: ${KC_BROCAL_API_CLIENT_SECRET:?falta en deploy/.env}
       # Crea en el realm la cuenta de quien se invita (contraseña temporal); la cuenta de servicio tiene manage-users.
       Identity__ProvisionUsers: ${BROCAL_PROVISION_USERS:-true}
-      # Sin Shell: el tema de ChronoLith se toma de la paleta incluida en Brocal.
-      Shell__ApiUrl: ""
+      # Opcional: Shell de ChronoLith por chronolith-net (tema y catálogos compartidos). Con la cuenta de servicio del
+      # realm chronolith, Brocal replica el catálogo maestro por su feed de cambios y le envía los cambios de las
+      # locaciones y clientes enlazados. Vacío: el tema se toma de la paleta incluida y los catálogos son solo de Brocal.
+      Shell__ApiUrl: ${SHELL_API_URL:-}
+      Shell__AuthServerUrl: ${SHELL_KEYCLOAK_URL:-}
+      Shell__Realm: ${SHELL_REALM:-chronolith}
+      Shell__ClientId: ${SHELL_CLIENT_ID:-}
+      Shell__ClientSecret: ${SHELL_CLIENT_SECRET:-}
+      Jobs__CatalogFeedMinutes: ${CATALOG_FEED_MINUTES:-2}
+      # Con la misma conexión, Brocal publica sus indicadores en el Shell, con enlaces a su sitio público.
+      Indicators__PublicUrl: ${BROCAL_PUBLIC_URL:-https://brocal.chronolith.com.mx}
       Files__RootPath: /data/files
       Files__SigningKey: ${BROCAL_FILES_SIGNING_KEY:?falta en deploy/.env (32 o más caracteres aleatorios)}
       DataProtection__KeysPath: /data/keys
@@ -70,6 +79,9 @@ services:
       Email__FromName: ${SMTP_FROM_NAME:-Brocal}
       Jobs__Enabled: "true"
       Cors__AllowedOrigins__0: ${BROCAL_PUBLIC_URL:-https://brocal.chronolith.com.mx}
+      # Licencia de ChronoLith de la instalación: sin una válida (aquí o cargada desde la pantalla Licencia) la API
+      # no arranca. Ver docs/produccion.md, Licencia.
+      License__Key: ${LICENSE_KEY:-}
     volumes:
       # Fotos, firmas, PDF y XML timbrados (/data/files) y llaves que cifran contraseñas de PAC y SMTP (/data/keys).
       - brocal-data:/data

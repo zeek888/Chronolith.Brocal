@@ -21,14 +21,27 @@ public sealed class IdentityOptions
     public bool ProvisionUsers { get; init; }
 }
 
+/// <summary>Client credentials of a service account: where to ask the token and as whom.</summary>
+internal sealed record ClientCredentials(string TokenUrl, string ClientId, string ClientSecret);
+
 /// <summary>Client-credentials token of the module's service account, cached until shortly before it expires.</summary>
-internal sealed class ServiceAccountTokenProvider(IHttpClientFactory httpClientFactory, IOptions<KeycloakOptions> keycloakOptions, TimeProvider timeProvider) : IDisposable
+internal class ServiceAccountTokenProvider(IHttpClientFactory httpClientFactory, IOptions<KeycloakOptions> keycloakOptions, TimeProvider timeProvider) : IDisposable
 {
     public const string HttpClientName = "keycloak-token";
 
     private readonly SemaphoreSlim _lock = new(1, 1);
     private string? _accessToken;
     private DateTimeOffset _expiresAt;
+
+    /// <summary>The module's own account (<c>Keycloak:ClientId</c>) in the realm the API validates tokens against.</summary>
+    protected virtual ClientCredentials Credentials
+    {
+        get
+        {
+            var keycloak = keycloakOptions.Value;
+            return new ClientCredentials($"{keycloak.BackchannelRealmUrl}/protocol/openid-connect/token", keycloak.ClientId, keycloak.ClientSecret ?? string.Empty);
+        }
+    }
 
     public async Task<string> GetTokenAsync(CancellationToken cancellationToken)
     {
@@ -45,19 +58,19 @@ internal sealed class ServiceAccountTokenProvider(IHttpClientFactory httpClientF
                 return _accessToken;
             }
 
-            var keycloak = keycloakOptions.Value;
+            var credentials = Credentials;
             using var client = httpClientFactory.CreateClient(HttpClientName);
             using var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["grant_type"] = "client_credentials",
-                ["client_id"] = keycloak.ClientId,
-                ["client_secret"] = keycloak.ClientSecret ?? string.Empty
+                ["client_id"] = credentials.ClientId,
+                ["client_secret"] = credentials.ClientSecret
             });
 
-            using var response = await client.PostAsync($"{keycloak.BackchannelRealmUrl}/protocol/openid-connect/token", content, cancellationToken);
+            using var response = await client.PostAsync(credentials.TokenUrl, content, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                throw new HttpRequestException($"Keycloak respondió {(int)response.StatusCode} al pedir el token de '{keycloak.ClientId}'.");
+                throw new HttpRequestException($"Keycloak respondió {(int)response.StatusCode} al pedir el token de '{credentials.ClientId}'.");
             }
 
             var token = await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken)
@@ -75,11 +88,32 @@ internal sealed class ServiceAccountTokenProvider(IHttpClientFactory httpClientF
 
     public void Invalidate() => _accessToken = null;
 
-    public void Dispose() => _lock.Dispose();
+    public void Dispose()
+    {
+        _lock.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     private sealed record TokenResponse(
         [property: JsonPropertyName("access_token")] string AccessToken,
         [property: JsonPropertyName("expires_in")] int ExpiresIn);
+}
+
+/// <summary>
+/// Service account that talks to the Shell of ChronoLith (change feed, writes to the master). In module mode it is
+/// the module's own account; standalone, the one configured in <c>Shell:ClientId</c> for the realm <c>chronolith</c>.
+/// </summary>
+internal sealed class ShellServiceAccountTokenProvider(IHttpClientFactory httpClientFactory, IOptions<KeycloakOptions> keycloakOptions, IOptions<Platform.ShellOptions> shellOptions, TimeProvider timeProvider)
+    : ServiceAccountTokenProvider(httpClientFactory, keycloakOptions, timeProvider)
+{
+    protected override ClientCredentials Credentials
+    {
+        get
+        {
+            var shell = shellOptions.Value;
+            return shell.HasOwnServiceAccount ? new ClientCredentials(shell.ServiceAccountTokenUrl, shell.ClientId!, shell.ClientSecret!) : base.Credentials;
+        }
+    }
 }
 
 internal sealed class ServiceAccountTokenHandler(ServiceAccountTokenProvider tokenProvider) : DelegatingHandler

@@ -7,7 +7,9 @@ Brocal se distribuye como dos imágenes y una base de datos PostgreSQL 17:
 | `chronolith/brocal-api` | API .NET 10 (`backend/Dockerfile`): ASP.NET 10, `fonts-liberation` para los PDF, `curl` para el *healthcheck*, usuario sin privilegios. Archivos y llaves en el volumen `/data`. | 8080 |
 | `chronolith/brocal-web` | nginx sin privilegios (`frontend/Dockerfile`): remote de Native Federation, página independiente y proxy de `/api`. Al arrancar escribe `config.json` con las variables de entorno: la misma imagen sirve en todos los ambientes. | 8080 |
 
-El build de la imagen web verifica las traducciones (`npm run i18n:check`) y compila en producción.
+El build de la imagen web verifica las traducciones (`npm run i18n:check`) y compila en producción. El de la API
+restaura los paquetes de licenciamiento de ChronoLith desde `backend/nuget/` (fuente local de `backend/nuget.config`;
+los `.nupkg` van en git).
 
 ## Composiciones
 
@@ -53,6 +55,9 @@ Todas las claves se pueden dar como variables de entorno con `__` (p. ej. `Keycl
 | `Keycloak:ClientId` · `ClientSecret` | Cuenta de servicio de la API (registro en el Shell y alta de usuarios). |
 | `Shell:ApiUrl` | API del Shell para permisos, tema y catálogos compartidos (vacío en modo independiente sin ChronoLith). |
 | `Shell:RequireAccessPermission` · `PermissionsCacheSeconds` | Exigir `brocal.access` del Shell; caché de permisos. |
+| `Shell:AuthServerUrl` · `Realm` · `ClientId` · `ClientSecret` | Solo modo independiente conectado a un Shell: cuenta de servicio del realm `chronolith` (rol `chronolith-module-registrar`) que consulta el feed de cambios y envía al maestro. Como módulo se usa la cuenta de `Keycloak:ClientId`. Vacíos = sin réplica de catálogos. |
+| `Jobs:CatalogFeedMinutes` | Cada cuántos minutos se consulta el feed de cambios de los catálogos del Shell (2; el contrato pide de 1 a 5). |
+| `Indicators:Enabled` · `PublicUrl` · `DispatchSeconds` | Indicadores publicados en el Shell con la misma conexión (`true`; ver [integración](integracion-chronolith.md#indicadores-para-la-gerencia)); URL pública `https://` de Brocal independiente para el enlace de cada valor (`BROCAL_PUBLIC_URL` en los compose independientes; como módulo el enlace es la ruta del Shell); cada cuántos segundos se procesa el buzón `indicator_messages` (60). |
 | `ModuleRegistration:Enabled` · `RemoteEntryUrl` · `ApiUrl` · `RoutePath` · `SortOrder` | Manifiesto publicado en el Shell (URLs públicas del módulo). |
 | `Identity:ProvisionUsers` | Crear en Keycloak la cuenta de quien se invita (requiere roles de `realm-management`). |
 | `Files:RootPath` · `SigningKey` · `DefaultUrlLifetimeMinutes` | Carpeta de archivos (`/data/files` en Docker), llave HMAC de los enlaces (32+ caracteres) y vigencia de los enlaces. |
@@ -60,9 +65,10 @@ Todas las claves se pueden dar como variables de entorno con `__` (p. ej. `Keycl
 | `Pdf:FontsPath` | Carpeta con fuentes TrueType si no se usan Liberation/DejaVu del sistema. |
 | `Email:*` | SMTP de la plataforma (`Host`, `Port`, `UseSsl`, `User`, `Password`, `FromAddress`, `FromName`). |
 | `WhatsApp:ApiBaseUrl` · `ApiVersion` | Graph API de Meta (las credenciales son por empresa). |
-| `Jobs:Enabled` · `ScanIntervalMinutes` | Envío de la bandeja de salida y revisiones programadas: vencimientos, recordatorios y autorizaciones atrasadas (cada 60 min; mínimo 5). Con `false`, el administrador de la plataforma aún puede ejecutar la revisión desde **Tareas programadas**. |
+| `Jobs:Enabled` · `ScanIntervalMinutes` | Envío de la bandeja de salida, revisiones programadas (vencimientos, recordatorios y autorizaciones atrasadas; cada 60 min, mínimo 5), sincronización de los catálogos de ChronoLith y publicación de indicadores. Con `false`, el administrador de la plataforma aún puede ejecutarlas desde **Tareas programadas** y **Catálogos de ChronoLith**. |
 | `Cors:AllowedOrigins` | Origen del Shell y de la página independiente. |
 | `OpenApi:Enabled` | Publica `/openapi` y `/scalar` fuera de desarrollo. |
+| `License:Key` · `License:File` | Solo modo independiente: licencia de ChronoLith (token, o ruta a un archivo con el token que se relee cada 5 min). Sin una válida la API no arranca. En Compose, `License__Key` sale de `LICENSE_KEY`; `docker-compose.standalone.yml` trae por omisión la de desarrollo (solo válida con Keycloak en `localhost`). Ver [producción](produccion.md#licencia). |
 
 ## Configuración del contenedor web
 
@@ -87,6 +93,8 @@ docker exec brocal-standalone-brocal-keycloak-1 rm -rf /opt/keycloak/data/tmp/kc
 
 ## Lista para producción
 
+- [ ] Modo independiente: `LICENSE_KEY` con la licencia emitida para la instalación (la de desarrollo se rechaza
+  fuera de `localhost`).
 - [ ] Contraseñas y secretos propios: base de datos, `KC_BROCAL_API_CLIENT_SECRET`, administrador de Keycloak.
 - [ ] `BROCAL_FILES_SIGNING_KEY` aleatoria de 32+ caracteres (cambiarla invalida los enlaces ya emitidos).
 - [ ] HTTPS de extremo a extremo y `Keycloak__RequireHttpsMetadata=true`.

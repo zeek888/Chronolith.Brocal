@@ -46,6 +46,7 @@
         <span class="cl-spacer"></span>
         <ng-container [ngTemplateOutlet]="tools" />
       </mat-toolbar>
+      <ng-container [ngTemplateOutlet]="licenseBanner" />
       <main class="br-main">
         <router-outlet />
       </main>
@@ -89,10 +90,24 @@
     <span class="cl-spacer"></span>
     <ng-container [ngTemplateOutlet]="tools" />
   </div>
+  <ng-container [ngTemplateOutlet]="licenseBanner" />
   <main class="br-main">
     <router-outlet />
   </main>
 }
+
+<!-- ChronoLith license of the installation (standalone API only; as a module the Shell shows its own notice). -->
+<ng-template #licenseBanner>
+  @if (licenseNotice(); as notice) {
+    <div class="br-license-banner br-warning-box" [class.br-warning-box--error]="notice.tone === 'error'" [class.br-warning-box--info]="notice.tone === 'info'" role="status">
+      <mat-icon>{{ notice.icon }}</mat-icon>
+      <span class="br-license-banner__text">{{ notice.text }}</span>
+      @if (session.isPlatformAdmin()) {
+        <a mat-button [routerLink]="link('plataforma/licencia')">{{ 'license.open' | t }}</a>
+      }
+    </div>
+  }
+</ng-template>
 
 <ng-template #tenantSwitcher>
   <button mat-button type="button" class="br-tenant" [matMenuTriggerFor]="tenantsMenu">

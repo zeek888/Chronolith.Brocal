@@ -1,8 +1,9 @@
 using ChronoLith.Brocal.Api.Extensions;
-using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
+using ChronoLith.Brocal.Application.Common;
 using ChronoLith.Brocal.Application.Features.Catalogs;
 using ChronoLith.Brocal.Application.Features.Pricing;
+using ChronoLith.Brocal.Application.Features.SharedCatalogs;
 using ChronoLith.Brocal.Domain.Commercial;
 using ChronoLith.Brocal.Domain.Platform;
 
@@ -19,10 +20,30 @@ internal sealed class CommercialCatalogEndpoints : IEndpoint
         app.MapCatalog<Contract, ContractData, ContractDto>("catalogs/contracts", "Contratos", read, Permissions.CatalogsManage);
         app.MapCatalog<Site, SiteData, SiteDto>("catalogs/sites", "Locaciones", read, Permissions.CatalogsManage);
 
-        // Module mode: wells, fields and companies of the ChronoLith shared catalog, to link sites and customers.
-        app.MapGet("catalogs/shell/{catalog}", async (string catalog, IShellCatalogClient shell, CancellationToken ct) =>
-                Results.Ok(new { available = shell.IsAvailable, items = await shell.LookupAsync(catalog, ct) }))
+        // Shared catalogs of ChronoLith (local replica fed by the change feed), to link sites and customers.
+        var shell = app.MapGroup("catalogs/shell").WithTags("Catálogos de ChronoLith");
+
+        shell.MapGet("status", async (IQueryHandler<GetSharedCatalogAvailabilityQuery, SharedCatalogAvailabilityDto> handler, CancellationToken ct) =>
+                (await handler.Handle(new GetSharedCatalogAvailabilityQuery(), ct)).ToOk())
+            .WithSummary("Si Brocal está conectado a un Shell de ChronoLith (réplica de catálogos disponible).")
+            .RequireTenant();
+
+        shell.MapGet("{catalog}/lookup", async (string catalog, bool? activeOnly, Guid? parentId,
+                IQueryHandler<GetSharedCatalogLookupQuery, IReadOnlyList<LookupDto>> handler, CancellationToken ct) =>
+                (await handler.Handle(new GetSharedCatalogLookupQuery(catalog, activeOnly ?? true, parentId), ct)).ToOk())
+            .WithSummary("Pozos, instalaciones, campos, compañías… del catálogo compartido, desde la réplica local (misma forma que los demás lookups).")
+            .RequireTenant();
+
+        app.MapPost("catalogs/sites/{id:guid}/shell", async (Guid id, ICommandHandler<PublishSiteToShellCommand, CatalogPushResultDto> handler, CancellationToken ct) =>
+                (await handler.Handle(new PublishSiteToShellCommand(id), ct)).ToOk())
             .WithTags("Locaciones")
+            .WithSummary("Crea la locación en el catálogo maestro de ChronoLith (o la enlaza si su clave ya existe) y envía sus datos compartidos.")
+            .RequirePermission(Permissions.CatalogsManage);
+
+        app.MapPost("catalogs/customers/{id:guid}/shell", async (Guid id, ICommandHandler<PublishCustomerToShellCommand, CatalogPushResultDto> handler, CancellationToken ct) =>
+                (await handler.Handle(new PublishCustomerToShellCommand(id), ct)).ToOk())
+            .WithTags("Clientes")
+            .WithSummary("Crea el cliente como compañía del catálogo maestro de ChronoLith (o lo enlaza si su clave ya existe).")
             .RequirePermission(Permissions.CatalogsManage);
     }
 }

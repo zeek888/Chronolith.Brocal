@@ -7,11 +7,18 @@ rutas son relativas a la base del módulo (`/brocal/...` dentro del Shell, `/...
 
 Los permisos se asignan a roles dentro de cada empresa; un permiso solo surte efecto si su módulo está contratado.
 
+En modo independiente, la licencia de ChronoLith de la instalación también decide qué módulos se pueden usar
+(productos `brocal.<código>`): una empresa solo usa los módulos que contrató **y** la licencia incluye. Ver
+[administración](administracion.md#módulos-de-la-licencia). Códigos, en el orden de las tablas: `tickets`,
+`dispatch`, `pricing`, `billing`, `fleet`, `maintenance`, `permits`, `fuel`, `inventory`, `personnel`, `hse`, `crews`,
+`expenses`, `invoicing`, `cartaporte`, `collections`, `quotes`, `dashboard`, `portal`, `reports`, `notifications` e
+`integrations`. Los módulos núcleo (`catalogs`, `access`, `audit`, `automation`) siempre están incluidos.
+
 ## Núcleo operativo
 
 | # | Módulo | Qué hace | Pantallas | Permisos | Requiere |
 |---|---|---|---|---|---|
-| 0 | **Catálogos base** (núcleo) | Clientes (operadoras) con datos fiscales y contactos, contratos con vigencia y monto máximo, locaciones y pozos. | `catalogos/clientes`, `catalogos/contratos`, `catalogos/locaciones` | `catalogs.read`, `catalogs.manage` | — |
+| 0 | **Catálogos base** (núcleo) | Clientes (operadoras) con datos fiscales y contactos, contratos con vigencia y monto máximo, locaciones y pozos. Conectado a ChronoLith, los pozos, instalaciones y clientes se enlazan al catálogo maestro del Shell (réplica local) y se publican en él. | `catalogos/clientes`, `catalogos/contratos`, `catalogos/locaciones` | `catalogs.read`, `catalogs.manage` | — |
 | 1 | **Boletas de servicio** | Captura en campo **sin señal** por tipo de servicio (formulario configurable), firma del cliente en pantalla, foto-evidencias con descripción, folio consecutivo y **PDF con la marca de la empresa**. Validación de oficina, cancelación y reapertura con motivo, costeo con la asistencia del personal. | `boletas`, `boletas/nueva`, `boletas/pendientes`, `boletas/:id` | `tickets.read`, `tickets.readown`, `tickets.capture`, `tickets.sign`, `tickets.approve`, `tickets.cancel`, `tickets.reopen`, `tickets.priceoverride` | Tarifarios |
 | 2 | **Órdenes de trabajo y programación** | Qué unidad y qué cuadrilla van a qué pozo y cuándo; tablero semanal por unidad con detección de traslapes; ciclo programada → despachada → en proceso → terminada. **La boleta nace de la orden.** | `ordenes`, `ordenes/programacion`, `ordenes/nueva`, `ordenes/:id` | `dispatch.read`, `dispatch.readown`, `dispatch.manage` | Boletas, Unidades, Cuadrillas |
 | 3 | **Servicios y tarifarios** | Conceptos con clave SAT y unidad, tarifarios por cliente o contrato con vigencia y tipos de servicio (formulario de captura, firma requerida, fotos mínimas). Precio aplicable: contrato → cliente → general → precio base. | `tarifas/servicios`, `tarifas/listas`, `tarifas/tipos-servicio` | `pricing.read`, `pricing.manage` | — |

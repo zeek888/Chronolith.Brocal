@@ -263,16 +263,6 @@ public interface IIdentityProvisioning
 
 // ---- ChronoLith platform --------------------------------------------------------------------------
 
-public sealed record ShellLookupItem(Guid Id, string Code, string Name, Guid? ParentId, bool IsActive);
-
-/// <summary>Shared catalogs of the ChronoLith Shell (wells, fields, companies) read with the user's token.</summary>
-public interface IShellCatalogClient
-{
-    bool IsAvailable { get; }
-
-    Task<IReadOnlyList<ShellLookupItem>> LookupAsync(string catalog, CancellationToken cancellationToken);
-}
-
 public sealed record ChronoLithTheme(string Name, ThemePalette Palette, string? AppName, string? LogoUrl, int Density, string DefaultColorScheme);
 
 /// <summary>Theme configured in ChronoLith (Administración → Apariencia), for standalone mode.</summary>

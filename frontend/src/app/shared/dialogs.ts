@@ -9,7 +9,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { ApprovalNotices } from '../core/approvals';
 import { I18n, TPipe } from '../core/i18n';
-import { ProblemDetails } from '../core/models';
+import { LICENSE_PROBLEMS, LICENSE_TOKEN_PROBLEMS, ProblemDetails } from '../core/models';
 
 interface ConfirmData {
   title: string;
@@ -164,6 +164,11 @@ export function describeError(error: unknown, i18n: I18n): string {
     }
 
     const problem = (error.error && typeof error.error === 'object' ? error.error : null) as ProblemDetails | null;
+    const license = describeLicenseProblem(problem, i18n);
+    if (license) {
+      return license;
+    }
+
     const fields = Object.values(problem?.errors ?? {}).flat();
     if (fields.length > 0) {
       return fields.slice(0, 3).join(' · ');
@@ -176,4 +181,39 @@ export function describeError(error: unknown, i18n: I18n): string {
   }
 
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Installation-wide limits of the license besides users and companies (keys of the API). */
+const LICENSE_LIMIT_LABELS: Record<string, string> = {
+  portalusers: 'license.limits.portalusers',
+  units: 'license.limits.units',
+  employees: 'license.limits.employees',
+  tickets: 'license.limits.tickets',
+  storagemb: 'license.limits.storagemb',
+  apikeys: 'license.limits.apikeys',
+};
+
+/**
+ * Problems of the ChronoLith license (standalone mode): the API sends the detail in Spanish, so the text comes from
+ * the translations by its `type` (read-only, limit reached, token rejected).
+ */
+function describeLicenseProblem(problem: ProblemDetails | null, i18n: I18n): string | null {
+  switch (problem?.type) {
+    case LICENSE_PROBLEMS.expired:
+      return i18n.t('errors.licenseExpired');
+    case LICENSE_PROBLEMS.limitReached:
+      return problem.key === 'users'
+        ? i18n.t('errors.licenseUsers', { limit: problem.limit })
+        : problem.key === 'companies'
+          ? i18n.t('errors.licenseCompanies', { limit: problem.limit })
+          : problem.key && LICENSE_LIMIT_LABELS[problem.key]
+            ? i18n.t('errors.licenseLimitOf', { what: i18n.t(LICENSE_LIMIT_LABELS[problem.key]), limit: problem.limit })
+            : i18n.t('errors.licenseLimit', { limit: problem.limit });
+    case LICENSE_PROBLEMS.productNotLicensed:
+      return i18n.t('errors.licenseProduct');
+    case LICENSE_PROBLEMS.invalid:
+      return (LICENSE_TOKEN_PROBLEMS as readonly string[]).includes(problem.problem ?? '') ? i18n.t(`license.problems.${problem.problem}`) : (problem.detail ?? null);
+    default:
+      return null;
+  }
 }

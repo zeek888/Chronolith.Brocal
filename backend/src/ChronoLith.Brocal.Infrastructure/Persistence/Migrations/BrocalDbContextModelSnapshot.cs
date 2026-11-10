@@ -1353,6 +1353,10 @@ namespace ChronoLith.Brocal.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("shell_catalog_id");
 
+                    b.Property<Guid?>("ShellFieldId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shell_field_id");
+
                     b.Property<string>("State")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -1379,6 +1383,10 @@ namespace ChronoLith.Brocal.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_sites");
+
+                    b.HasIndex("ShellCatalogId")
+                        .HasDatabaseName("ix_sites_shell_catalog_id")
+                        .HasFilter("shell_catalog_id IS NOT NULL");
 
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_sites_tenant_id");
@@ -1484,6 +1492,9 @@ namespace ChronoLith.Brocal.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_compliance_documents_tenant_id");
+
+                    b.HasIndex("SubjectId", "DocumentTypeId")
+                        .HasDatabaseName("ix_compliance_documents_subject_id_document_type_id");
 
                     b.HasIndex("TenantId", "ExpiresOn")
                         .HasDatabaseName("ix_compliance_documents_tenant_id_expires_on");
@@ -3572,6 +3583,9 @@ namespace ChronoLith.Brocal.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_incidents_tenant_id");
 
+                    b.HasIndex("SiteId", "OccurredAt")
+                        .HasDatabaseName("ix_incidents_site_id_occurred_at");
+
                     b.HasIndex("TenantId", "FolioNumber")
                         .IsUnique()
                         .HasDatabaseName("ix_incidents_tenant_id_folio_number");
@@ -4546,11 +4560,18 @@ namespace ChronoLith.Brocal.Infrastructure.Persistence.Migrations
                     b.HasIndex("InvoiceId")
                         .HasDatabaseName("ix_tickets_invoice_id");
 
+                    b.HasIndex("SiteId")
+                        .HasDatabaseName("ix_tickets_site_id_draft")
+                        .HasFilter("status = 'Draft'");
+
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_tickets_tenant_id");
 
                     b.HasIndex("WorkOrderId")
                         .HasDatabaseName("ix_tickets_work_order_id");
+
+                    b.HasIndex("SiteId", "ServiceDate")
+                        .HasDatabaseName("ix_tickets_site_id_service_date");
 
                     b.HasIndex("TenantId", "ClientId")
                         .IsUnique()
@@ -4842,6 +4863,9 @@ namespace ChronoLith.Brocal.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_work_orders_tenant_id");
+
+                    b.HasIndex("SiteId", "Status")
+                        .HasDatabaseName("ix_work_orders_site_id_status");
 
                     b.HasIndex("TenantId", "FolioNumber")
                         .IsUnique()
@@ -5646,6 +5670,141 @@ namespace ChronoLith.Brocal.Infrastructure.Persistence.Migrations
                     b.ToTable("audit_entries", "brocal");
                 });
 
+            modelBuilder.Entity("ChronoLith.Brocal.Domain.Platform.CatalogFeedState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("Cursor")
+                        .HasColumnType("bigint")
+                        .HasColumnName("cursor");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTimeOffset?>("LastErrorAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_error_at");
+
+                    b.Property<DateTimeOffset?>("LastFullSyncAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_full_sync_at");
+
+                    b.Property<DateTimeOffset?>("LastPolledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_polled_at");
+
+                    b.Property<DateTimeOffset?>("LastReportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_reported_at");
+
+                    b.Property<int>("LastRunApplied")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_run_applied");
+
+                    b.Property<int>("LastRunErrors")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_run_errors");
+
+                    b.Property<long>("Latest")
+                        .HasColumnType("bigint")
+                        .HasColumnName("latest");
+
+                    b.HasKey("Id")
+                        .HasName("pk_catalog_feed_state");
+
+                    b.ToTable("catalog_feed_state", "brocal");
+                });
+
+            modelBuilder.Entity("ChronoLith.Brocal.Domain.Platform.CatalogPushMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<string>("Catalog")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("catalog");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("entity_type");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("method");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<Guid?>("ShellId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shell_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("summary");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_catalog_push_messages");
+
+                    b.HasIndex("EntityId", "Status")
+                        .HasDatabaseName("ix_catalog_push_messages_entity_id_status");
+
+                    b.HasIndex("Status", "NextAttemptAt")
+                        .HasDatabaseName("ix_catalog_push_messages_status_next_attempt_at");
+
+                    b.ToTable("catalog_push_messages", "brocal");
+                });
+
             modelBuilder.Entity("ChronoLith.Brocal.Domain.Platform.FolioSequence", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5677,6 +5836,129 @@ namespace ChronoLith.Brocal.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_folio_sequences_tenant_id_key");
 
                     b.ToTable("folio_sequences", "brocal");
+                });
+
+            modelBuilder.Entity("ChronoLith.Brocal.Domain.Platform.IndicatorMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("Items")
+                        .HasColumnType("integer")
+                        .HasColumnName("items");
+
+                    b.Property<bool>("KeepRetrying")
+                        .HasColumnType("boolean")
+                        .HasColumnName("keep_retrying");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_indicator_messages");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_indicator_messages_created_at");
+
+                    b.HasIndex("Status", "Kind", "CreatedAt")
+                        .HasDatabaseName("ix_indicator_messages_status_kind_created_at");
+
+                    b.ToTable("indicator_messages", "brocal");
+                });
+
+            modelBuilder.Entity("ChronoLith.Brocal.Domain.Platform.IndicatorSubject", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("HasNextExpiry")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_next_expiry");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_published");
+
+                    b.Property<string>("SubjectType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("subject_type");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_indicator_subjects");
+
+                    b.ToTable("indicator_subjects", "brocal");
+                });
+
+            modelBuilder.Entity("ChronoLith.Brocal.Domain.Platform.InstallationLicense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("InstanceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("instance_id");
+
+                    b.Property<string>("Token")
+                        .HasColumnType("text")
+                        .HasColumnName("token");
+
+                    b.Property<DateTimeOffset?>("UploadedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("uploaded_at");
+
+                    b.Property<string>("UploadedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("uploaded_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_installation_license");
+
+                    b.ToTable("installation_license", "brocal");
                 });
 
             modelBuilder.Entity("ChronoLith.Brocal.Domain.Platform.NotificationChannelSettings", b =>
@@ -6024,6 +6306,67 @@ namespace ChronoLith.Brocal.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_scheduled_job_runs_started_at");
 
                     b.ToTable("scheduled_job_runs", "brocal");
+                });
+
+            modelBuilder.Entity("ChronoLith.Brocal.Domain.Platform.SharedCatalogItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Catalog")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("catalog");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("code");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<long?>("LastChangeId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_change_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_id");
+
+                    b.Property<string>("Snapshot")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("snapshot");
+
+                    b.Property<DateTimeOffset>("SyncedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("synced_at");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_shared_catalog_items");
+
+                    b.HasIndex("Catalog", "Code")
+                        .HasDatabaseName("ix_shared_catalog_items_catalog_code");
+
+                    b.HasIndex("Catalog", "ParentId")
+                        .HasDatabaseName("ix_shared_catalog_items_catalog_parent_id");
+
+                    b.ToTable("shared_catalog_items", "brocal");
                 });
 
             modelBuilder.Entity("ChronoLith.Brocal.Domain.Platform.StoredFile", b =>

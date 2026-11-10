@@ -29,6 +29,8 @@ internal sealed class ComplianceDocumentConfiguration : IEntityTypeConfiguration
         builder.HasIndex(d => new { d.TenantId, d.Subject, d.SubjectId });
         builder.HasIndex(d => new { d.TenantId, d.ExpiresOn });
         builder.HasIndex(d => d.DocumentTypeId);
+        // Indicators for the Shell (every company): documents of the deployed people and units.
+        builder.HasIndex(d => new { d.SubjectId, d.DocumentTypeId });
     }
 }
 
@@ -204,6 +206,8 @@ internal sealed class IncidentConfiguration : IEntityTypeConfiguration<Incident>
         builder.HasJson(i => i.Actions).HasField("_actions").UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.HasIndex(i => new { i.TenantId, i.FolioNumber }).IsUnique();
         builder.HasIndex(i => new { i.TenantId, i.OccurredAt });
+        // Indicators for the Shell (every company): incidents of a site.
+        builder.HasIndex(i => new { i.SiteId, i.OccurredAt });
     }
 }
 

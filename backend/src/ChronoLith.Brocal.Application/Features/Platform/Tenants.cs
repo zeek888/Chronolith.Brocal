@@ -48,7 +48,7 @@ public sealed record TenantDetailDto(
 
 public sealed record SearchTenantsQuery(string? Search, TenantStatus? Status, int Page = 1, int PageSize = 25) : IQuery<PagedResult<TenantSummaryDto>>;
 
-internal sealed class SearchTenantsQueryHandler(IApplicationDbContext db, IFileService files) : IQueryHandler<SearchTenantsQuery, PagedResult<TenantSummaryDto>>
+internal sealed class SearchTenantsQueryHandler(IApplicationDbContext db, IFileService files, ILicensedModules licensed) : IQueryHandler<SearchTenantsQuery, PagedResult<TenantSummaryDto>>
 {
     public async Task<Result<PagedResult<TenantSummaryDto>>> Handle(SearchTenantsQuery query, CancellationToken cancellationToken)
     {
@@ -86,7 +86,7 @@ internal sealed class SearchTenantsQueryHandler(IApplicationDbContext db, IFileS
             t.Status,
             t.Plan,
             t.TrialEndsOn,
-            t.EnabledModules.Count(m => !BrocalModules.CoreModules.Contains(m)),
+            t.EnabledModules.Count(m => !BrocalModules.CoreModules.Contains(m) && licensed.IsGranted(m)),
             users.GetValueOrDefault(t.Id),
             t.Branding.LogoFileId is { } logo ? files.GetUrl(logo, TimeSpan.FromHours(12), t.Id) : null,
             t.Branding.UseChronoLithTheme ? ThemePalette.ChronoLith.Primary : t.Branding.Palette.Primary,
@@ -176,7 +176,9 @@ internal sealed class CreateTenantCommandHandler(
     ITenantContext tenantContext,
     IIdentityProvisioning identity,
     IAuditLog audit,
-    ITenantClock clock) : ICommandHandler<CreateTenantCommand, CreateTenantResult>
+    ITenantClock clock,
+    ILicenseLimits license,
+    ILicensedModules licensedModules) : ICommandHandler<CreateTenantCommand, CreateTenantResult>
 {
     public async Task<Result<CreateTenantResult>> Handle(CreateTenantCommand command, CancellationToken cancellationToken)
     {
@@ -184,6 +186,23 @@ internal sealed class CreateTenantCommandHandler(
         if (await db.Tenants.AnyAsync(t => t.Slug == slug, cancellationToken))
         {
             return TenantErrors.SlugTaken;
+        }
+
+        var notGranted = (command.Modules ?? []).Where(m => BrocalModules.Exists(m) && !licensedModules.IsGranted(m)).Distinct().ToList();
+        if (notGranted.Count > 0)
+        {
+            return LicensedModuleErrors.NotGranted(notGranted);
+        }
+
+        var licensed = await license.EnsureCanAddCompanyAsync(cancellationToken);
+        if (licensed.IsSuccess)
+        {
+            licensed = await license.EnsureCanAddUserAsync(command.AdminEmail, portalUser: false, cancellationToken);
+        }
+
+        if (licensed.IsFailure)
+        {
+            return licensed.Error;
         }
 
         var created = Tenant.Create(slug, command.Name, command.Plan, command.Modules);
@@ -306,7 +325,11 @@ internal sealed class UpdateTenantQuotasCommandHandler(IApplicationDbContext db)
 
 public sealed record SetTenantModulesCommand(Guid Id, IReadOnlyList<string> Modules) : ICommand<IReadOnlyList<string>>;
 
-internal sealed class SetTenantModulesCommandHandler(IApplicationDbContext db) : ICommandHandler<SetTenantModulesCommand, IReadOnlyList<string>>
+/// <summary>
+/// Replaces the contracted modules. Only modules the license grants can be added; a module the company already had
+/// and the current license no longer grants can stay selected (it stays off until a license grants it again).
+/// </summary>
+internal sealed class SetTenantModulesCommandHandler(IApplicationDbContext db, ILicensedModules licensed) : ICommandHandler<SetTenantModulesCommand, IReadOnlyList<string>>
 {
     public async Task<Result<IReadOnlyList<string>>> Handle(SetTenantModulesCommand command, CancellationToken cancellationToken)
     {
@@ -320,6 +343,15 @@ internal sealed class SetTenantModulesCommandHandler(IApplicationDbContext db) :
         if (unknown is not null)
         {
             return Error.Validation("Tenants.UnknownModule", $"El módulo '{unknown}' no existe.");
+        }
+
+        var notGranted = command.Modules
+            .Where(m => !tenant.EnabledModules.Contains(m) && !licensed.IsGranted(m))
+            .Distinct()
+            .ToList();
+        if (notGranted.Count > 0)
+        {
+            return LicensedModuleErrors.NotGranted(notGranted);
         }
 
         tenant.SetModules(command.Modules);
@@ -370,7 +402,8 @@ public enum TenantStatusAction
 
 public sealed record ChangeTenantStatusCommand(Guid Id, TenantStatusAction Action, string? Reason, DateOnly? TrialEndsOn) : ICommand;
 
-internal sealed class ChangeTenantStatusCommandHandler(IApplicationDbContext db, IAuditLog audit, ITenantClock clock) : ICommandHandler<ChangeTenantStatusCommand>
+internal sealed class ChangeTenantStatusCommandHandler(IApplicationDbContext db, IAuditLog audit, ITenantClock clock, ILicenseLimits license)
+    : ICommandHandler<ChangeTenantStatusCommand>
 {
     public async Task<Result> Handle(ChangeTenantStatusCommand command, CancellationToken cancellationToken)
     {
@@ -378,6 +411,18 @@ internal sealed class ChangeTenantStatusCommandHandler(IApplicationDbContext db,
         if (tenant is null)
         {
             return TenantErrors.NotFound;
+        }
+
+        // Reactivating a suspended or cancelled company takes a place of the license again.
+        var reactivates = command.Action is TenantStatusAction.Activate or TenantStatusAction.StartTrial &&
+                          tenant.Status is TenantStatus.Suspended or TenantStatus.Cancelled;
+        if (reactivates)
+        {
+            var licensed = await license.EnsureCanAddCompanyAsync(cancellationToken);
+            if (licensed.IsFailure)
+            {
+                return licensed;
+            }
         }
 
         var result = command.Action switch

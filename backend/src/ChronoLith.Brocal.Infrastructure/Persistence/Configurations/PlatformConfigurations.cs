@@ -92,6 +92,63 @@ internal sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEn
     }
 }
 
+/// <summary>Single global row (not <c>ITenantOwned</c>: no company filter); see <see cref="InstallationLicense"/>.</summary>
+internal sealed class InstallationLicenseConfiguration : IEntityTypeConfiguration<InstallationLicense>
+{
+    public void Configure(EntityTypeBuilder<InstallationLicense> builder)
+    {
+        builder.ToTable("installation_license");
+        builder.ConfigureEntity();
+        builder.Property(l => l.Token);
+        builder.Property(l => l.UploadedBy).HasMaxLength(150);
+    }
+}
+
+/// <summary>Replica of the shared catalogs of the Shell: the id of the Shell is the key; global rows (no company filter).</summary>
+internal sealed class SharedCatalogItemConfiguration : IEntityTypeConfiguration<SharedCatalogItem>
+{
+    public void Configure(EntityTypeBuilder<SharedCatalogItem> builder)
+    {
+        builder.ToTable("shared_catalog_items");
+        builder.ConfigureEntity();
+        builder.Property(i => i.Catalog).HasMaxLength(30).IsRequired();
+        builder.Property(i => i.Code).HasMaxLength(SharedCatalogItem.MaxCodeLength).IsRequired();
+        builder.Property(i => i.Name).HasMaxLength(SharedCatalogItem.MaxNameLength).IsRequired();
+        builder.Property(i => i.Snapshot).HasColumnType("jsonb").IsRequired();
+        builder.HasIndex(i => new { i.Catalog, i.Code });
+        builder.HasIndex(i => new { i.Catalog, i.ParentId });
+    }
+}
+
+/// <summary>Single global row with the cursor of the change feed (see <see cref="CatalogFeedState.SingletonId"/>).</summary>
+internal sealed class CatalogFeedStateConfiguration : IEntityTypeConfiguration<CatalogFeedState>
+{
+    public void Configure(EntityTypeBuilder<CatalogFeedState> builder)
+    {
+        builder.ToTable("catalog_feed_state");
+        builder.ConfigureEntity();
+        builder.Property(s => s.LastError).HasMaxLength(CatalogFeedState.MaxErrorLength);
+    }
+}
+
+/// <summary>Writes to the master catalog waiting for the service account (not <c>ITenantOwned</c>: the platform sees them all).</summary>
+internal sealed class CatalogPushMessageConfiguration : IEntityTypeConfiguration<CatalogPushMessage>
+{
+    public void Configure(EntityTypeBuilder<CatalogPushMessage> builder)
+    {
+        builder.ToTable("catalog_push_messages");
+        builder.ConfigureEntity();
+        builder.Property(m => m.EntityType).HasMaxLength(30).IsRequired();
+        builder.Property(m => m.Catalog).HasMaxLength(30).IsRequired();
+        builder.Property(m => m.Method).HasMaxLength(6).IsRequired();
+        builder.Property(m => m.Payload).HasColumnType("jsonb").IsRequired();
+        builder.Property(m => m.Summary).HasMaxLength(300).IsRequired();
+        builder.Property(m => m.LastError).HasMaxLength(1000);
+        builder.HasIndex(m => new { m.Status, m.NextAttemptAt });
+        builder.HasIndex(m => new { m.EntityId, m.Status });
+    }
+}
+
 internal sealed class FolioSequenceConfiguration : IEntityTypeConfiguration<FolioSequence>
 {
     public void Configure(EntityTypeBuilder<FolioSequence> builder)

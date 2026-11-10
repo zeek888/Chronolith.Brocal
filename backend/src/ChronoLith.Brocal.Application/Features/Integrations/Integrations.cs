@@ -84,7 +84,7 @@ public interface IApiKeyAuthenticator
     Task<Result<TenantSnapshot>> AuthenticateAsync(string? plainKey, string scope, CancellationToken cancellationToken);
 }
 
-internal sealed class ApiKeyAuthenticator(IApplicationDbContext db, TimeProvider timeProvider) : IApiKeyAuthenticator
+internal sealed class ApiKeyAuthenticator(IApplicationDbContext db, TimeProvider timeProvider, ILicensedModules licensedModules) : IApiKeyAuthenticator
 {
     public async Task<Result<TenantSnapshot>> AuthenticateAsync(string? plainKey, string scope, CancellationToken cancellationToken)
     {
@@ -102,13 +102,14 @@ internal sealed class ApiKeyAuthenticator(IApplicationDbContext db, TimeProvider
         }
 
         var tenant = await db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == key.TenantId, cancellationToken);
-        if (tenant is null || !tenant.IsOperational(today) || !tenant.IsModuleEnabled(BrocalModules.Integrations))
+        if (tenant is null || !tenant.IsOperational(today) || !tenant.IsModuleEnabled(BrocalModules.Integrations) ||
+            !licensedModules.IsGranted(BrocalModules.Integrations))
         {
             return IntegrationErrors.InvalidApiKey;
         }
 
         key.MarkUsed(timeProvider.GetUtcNow());
-        return TenantSnapshot.From(tenant);
+        return licensedModules.Apply(TenantSnapshot.From(tenant));
     }
 }
 

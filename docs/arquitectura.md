@@ -19,7 +19,8 @@ formas con el mismo código:
         │ nginx (web)    │──/api─▶ API .NET 10  │──▶ PostgreSQL 17 (esquema brocal)
         │ remoteEntry,   │       │              │──▶ /data (archivos, llaves)
         │ config.json    │       │              │──▶ Keycloak (JWKS, alta de usuarios)
-        └────────────────┘       │              │──▶ Shell API (permisos, tema, manifiesto)
+        └────────────────┘       │              │──▶ Shell API (permisos, tema, manifiesto,
+                                 │              │      feed de cambios de catálogos y escritura al maestro)
                                  │              │──▶ PAC, SMTP, WhatsApp Cloud API
                                  └──────────────┘
 ```
@@ -30,16 +31,20 @@ formas con el mismo código:
 
 | Proyecto | Contenido |
 |---|---|
-| `Domain` | Agregados y reglas de negocio por área: `Operations` (boletas, órdenes), `Commercial` (clientes, contratos, tarifarios, cotizaciones), `Fleet`, `Inventory`, `People`, `Compliance`, `Hse`, `Fiscal` (facturas, pagos, Carta Porte, estimaciones), `Automation` (catálogo de documentos y datos, flujos, solicitudes de autorización, reglas), `Platform` (empresas, membresías, roles, módulos, archivos, notificaciones, bitácora, ejecuciones programadas). Sin dependencias de infraestructura; setters privados y resultados `Result`. |
-| `Application` | Casos de uso CQRS por funcionalidad (`Features/*`): comandos y consultas `sealed record` con su manejador `internal sealed`. Decoradores con Scrutor para validación (FluentValidation) y bitácora de ejecución; sin MediatR. |
-| `Infrastructure` | EF Core 10 + Npgsql (esquema `brocal`, nombres `snake_case`, concurrencia con `xmin`), interceptores multiempresa y de auditoría, archivos en disco con URLs firmadas, PDF (PDFsharp/MigraDoc), Excel (ClosedXML), CFDI 4.0, correo (MailKit), WhatsApp, Keycloak, integración con el Shell y tareas programadas. |
+| `Domain` | Agregados y reglas de negocio por área: `Operations` (boletas, órdenes), `Commercial` (clientes, contratos, tarifarios, cotizaciones), `Fleet`, `Inventory`, `People`, `Compliance`, `Hse`, `Fiscal` (facturas, pagos, Carta Porte, estimaciones), `Automation` (catálogo de documentos y datos, flujos, solicitudes de autorización, reglas), `Platform` (empresas, membresías, roles, módulos, archivos, notificaciones, bitácora, ejecuciones programadas, réplica de los catálogos de ChronoLith y buzón de envíos al maestro). Sin dependencias de infraestructura; setters privados y resultados `Result`. |
+| `Application` | Casos de uso CQRS por funcionalidad (`Features/*`): comandos y consultas `sealed record` con su manejador `internal sealed`. Decoradores con Scrutor para validación (FluentValidation) y bitácora de ejecución; sin MediatR. `Features/SharedCatalogs` es el consumidor del feed de cambios y el envío al catálogo maestro. |
+| `Infrastructure` | EF Core 10 + Npgsql (esquema `brocal`, nombres `snake_case`, concurrencia con `xmin`), interceptores multiempresa y de auditoría, archivos en disco con URLs firmadas, PDF (PDFsharp/MigraDoc), Excel (ClosedXML), CFDI 4.0, correo (MailKit), WhatsApp, Keycloak, integración con el Shell (permisos, tema, manifiesto, feed de catálogos y escritura al maestro) y tareas programadas. |
 | `Api` | *Minimal APIs* agrupadas por área (`Endpoints/*`), políticas de autorización, ProblemDetails en español, OpenAPI con Scalar, `/health`. |
 
-Pruebas en `backend/tests`: dominio (xUnit v3), reglas de arquitectura (NetArchTest: dependencias entre capas,
-manejadores `internal sealed`, comandos `sealed record`, sin setters públicos en el dominio) e integración
-(WebApplicationFactory + PostgreSQL en Testcontainers): seguridad de todos los endpoints, aislamiento entre
-empresas, ciclo completo boleta → firma → PDF → factura timbrada → pago, folios concurrentes, portal, API keys,
-flujos de autorización (de empresa y globales), reglas que bloquean o avisan y tareas programadas.
+Pruebas en `backend/tests`: dominio (xUnit v3), aplicación (`Application.UnitTests`: el consumidor del feed de
+catálogos contra un Shell simulado y los cuerpos que se envían al maestro), reglas de arquitectura (NetArchTest:
+dependencias entre capas, manejadores `internal sealed`, comandos `sealed record`, sin setters públicos en el dominio)
+e integración (WebApplicationFactory + PostgreSQL en Testcontainers): seguridad de todos los endpoints, aislamiento
+entre empresas, ciclo completo boleta → firma → PDF → factura timbrada → pago, folios concurrentes, portal, API keys,
+flujos de autorización (de empresa y globales), reglas que bloquean o avisan, tareas programadas, licencia (la API no
+arranca sin ella, solo lectura con la licencia vencida y límites de usuarios y empresas; las pruebas firman sus
+licencias con una llave propia) y el lado HTTP de los catálogos compartidos (token, encabezado `X-ChronoLith-Source`,
+respuestas del maestro y análisis del feed, sin Docker).
 
 ### Multiempresa
 
@@ -52,6 +57,34 @@ flujos de autorización (de empresa y globales), reglas que bloquean o avisan y 
   programadas, inicio de sesión) trabajan en cada empresa con `ITenantContext.BeginScope`.
 - Políticas: `tenant` (hay empresa), `platform-admin` y `tenant:<permiso1>|<permiso2>` (cualquiera de los
   permisos, con su módulo contratado). Una prueba de integración verifica que todo endpoint declare su política.
+
+### Licencia de ChronoLith (modo independiente)
+
+Solo con `Tenancy:Mode=Standalone` la API registra el licenciamiento (`ChronoLith.Licensing` y
+`ChronoLith.Licensing.AspNetCore`, paquetes de `backend/nuget/`, producto `brocal`); como módulo lo valida el Shell
+y no se registra nada.
+
+- `Program.cs` carga la licencia **después de migrar** (`InitializeChronoLithLicenseAsync`): sin una válida, la API
+  termina. El middleware de solo lectura va después de la autorización; las escrituras que no son datos de negocio
+  se marcan con `AllowWhenLicenseExpired` (`POST me/session`, `POST me/notifications/read`,
+  `POST compliance/package`).
+- `Infrastructure/Licensing/LicenseStore` guarda el id de la instalación y la licencia cargada desde la pantalla en
+  `installation_license`, una tabla de una sola fila **global** (no es `ITenantOwned`, sin filtro de empresa). Si
+  dos réplicas la crean a la vez, gana la primera (misma llave primaria) y la otra relee.
+- `Application/Features/Platform/LicenseLimits` cuenta los límites de la instalación (`users`, `portalusers`,
+  `companies`, `units`, `employees`, `tickets`, `storagemb`, `apikeys`) en todas las empresas
+  (`IgnoreQueryFilters`) y devuelve `LicenseLimitError`, que la API traduce a 403 con el tipo `licencia-limite`.
+  `QuotaGuard` lo consulta después de la cuota de la empresa; los usuarios los revisan los manejadores de miembros y
+  empresas, que conocen el correo. Recibe `ILicenseAccessor?` con valor por omisión `null`: en modo módulo, y antes
+  de cargar la licencia (migración y empresa demo), no limita nada.
+- `Application/Features/Platform/LicensedModules` (singleton) lee los productos `brocal.<módulo>` de la licencia
+  activa, les agrega dependencias y núcleo, y lo recalcula cuando cambia `ILicenseAccessor.Version`. `TenantContext`
+  lo aplica a cada `TenantSnapshot` que recibe (`Set` y `BeginScope`) y filtra los permisos, así que
+  `IsModuleEnabled`, el menú, la autorización, los trabajos programados y las API keys ven los módulos efectivos sin
+  cambiar lo guardado en la empresa. Alta de empresas y `PUT platform/tenants/{id}/modules` rechazan agregar módulos
+  fuera de la licencia (`License.ModuleNotGranted`), y `GET platform/modules` marca cada módulo con `licensed`.
+- Endpoints `api/license` (`MapChronoLithLicense`): `status` con cualquier sesión; detalle y carga con la política
+  `platform-admin`.
 
 ### Bitácora y trazabilidad
 
@@ -78,6 +111,37 @@ mantenimiento, facturas vencidas, boletas sin facturar, existencias bajas, cotiz
 atrasadas (con llaves de deduplicación para no repetir avisos). Un *advisory lock* de PostgreSQL evita dos
 revisiones a la vez y cada ejecución queda en `scheduled_job_runs` (la plataforma la consulta o la lanza desde
 `plataforma/tareas`). Ver [tareas programadas](automatizacion.md#tareas-programadas).
+
+### Catálogos compartidos de ChronoLith
+
+Conectado a un Shell, Brocal mantiene una réplica **de la instalación** de los siete catálogos maestros
+(`SharedCatalogItem`, tabla `shared_catalog_items`: id del Shell como llave, clave, nombre, padre, activo, `updatedAt`
+del maestro y la foto JSON del DTO; no es `ITenantOwned`). `CatalogFeedConsumer` (Application) sigue el feed de cambios
+del Shell con la cuenta de servicio (`ICatalogFeedClient`): aplica cada página en orden sobre `ICatalogReplica`,
+adopta el cursor de la respuesta y lo guarda (`catalog_feed_state`, una fila) después de aplicar la página, reporta los
+ids aplicados y los que fallaron, aplica las reproducciones, hace la carga completa con `requiresFullSync` o la primera
+vez, y reconoce los cambios propios por `source: brocal`. `CatalogSyncService` lo ejecuta cada `Jobs:CatalogFeedMinutes`
+con un *advisory lock*; el administrador de la plataforma lo lanza desde *Catálogos de ChronoLith*.
+
+En sentido contrario, `MasterCatalogSync` envía al maestro los cambios de locaciones y clientes enlazados
+(`ICatalogSpec.AfterCommitAsync` de `SiteSpec` y `CustomerSpec`, y *Publicar en ChronoLith*): primero con el token del
+usuario (`IMasterCatalogWriter`, siempre con `X-ChronoLith-Source: brocal`) y, si el Shell lo rechaza por permisos o
+no responde, por el buzón `catalog_push_messages`, que la cuenta de servicio vacía con reintentos exponenciales al
+inicio de cada sincronización. `LinkedRecordsReconciler` resuelve los conflictos al aplicar el feed: gana el lado que
+cambió más tarde (`updatedAt`), los envíos pendientes superados se descartan y las locaciones de un elemento
+desactivado se desactivan. Sin `Shell:ApiUrl` o sin cuenta de servicio nada de esto se activa y los selectores de
+ChronoLith no aparecen.
+
+### Indicadores para el Shell
+
+Con la misma conexión, Brocal publica indicadores por pozo o instalación del catálogo compartido (fuente `brocal`, ver
+[integración](integracion-chronolith.md#indicadores-para-la-gerencia)). `IndicatorChangeInterceptor` (interceptor de EF)
+agrega en el mismo `SaveChanges` del cambio de negocio una marca `IndicatorMessage` (tabla global `indicator_messages`)
+con las locaciones, sujetos y días afectados. `IndicatorPublishingService` registra las definiciones, encola la
+republicación diaria y llama a `IndicatorPublisher` (Application): junta las marcas, lee los datos de todas las empresas
+con `IndicatorDataLoader` (`IgnoreQueryFilters`, suma las locaciones enlazadas a cada sujeto), calcula los valores con
+`IndicatorCalculator` (puro, probado sin base de datos), guarda las solicitudes de hasta 500 valores y los retiros, y
+las entrega en orden con `IIndicatorClient` (cuenta de servicio); un 400 se descarta.
 
 ### Flujos de autorización y reglas de negocio
 
@@ -114,8 +178,8 @@ Angular 22 (componentes *standalone*, *signals*, sin zone.js), Angular Material 
 
 | Carpeta | Contenido |
 |---|---|
-| `core/` | Configuración (`API = new URL('api', import.meta.url)`), cliente HTTP con `X-Tenant`, sesión y permisos (`BrocalSession`, guardas `requires(...)`, directiva `*brCan`), navegación relativa a la base del módulo (`BrocalNav`), i18n (Transloco, *scope* `brocal`, español e inglés), tema, captura offline, formatos y fechas. |
-| `shared/` | Componentes y motores genéricos: `CatalogPage`, `ListPage`, `RecordPage`, `EntityForm`/`EntityDialog` (formularios por configuración), tabla, selector de catálogos con búsqueda, firma, fotos, gráficas (ECharts, carga diferida). |
+| `core/` | Configuración (`API = new URL('api', import.meta.url)`), cliente HTTP con `X-Tenant`, sesión y permisos (`BrocalSession`, guardas `requires(...)`, directiva `*brCan`, `sharedCatalogsEnabled()` para los campos de ChronoLith), navegación relativa a la base del módulo (`BrocalNav`), i18n (Transloco, *scope* `brocal`, español e inglés), tema, captura offline, formatos y fechas. |
+| `shared/` | Componentes y motores genéricos: `CatalogPage` (con acciones de renglón por configuración, `rowActions`), `ListPage`, `RecordPage`, `EntityForm`/`EntityDialog` (formularios por configuración), tabla, selector de catálogos con búsqueda (también sobre la réplica de ChronoLith, `catalogs/shell/<catálogo>`), firma, fotos, gráficas (ECharts, carga diferida). |
 | `features/` | Pantallas por área, mayormente declaradas como configuración (`*.config.ts`) sobre los motores genéricos. |
 | `layout/` | Banda superior dentro del Shell o barra lateral en modo independiente; estilos globales `br-*`. |
 | `widgets/` | Widgets para el tablero del Shell (`resumen-mes`, `vencimientos`, `flota`). |

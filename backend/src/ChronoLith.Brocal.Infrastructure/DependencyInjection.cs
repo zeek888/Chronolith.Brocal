@@ -9,12 +9,14 @@ using ChronoLith.Brocal.Infrastructure.Files;
 using ChronoLith.Brocal.Infrastructure.Fiscal;
 using ChronoLith.Brocal.Infrastructure.Identity;
 using ChronoLith.Brocal.Infrastructure.Jobs;
+using ChronoLith.Brocal.Infrastructure.Licensing;
 using ChronoLith.Brocal.Infrastructure.Notifications;
 using ChronoLith.Brocal.Infrastructure.Persistence;
 using ChronoLith.Brocal.Infrastructure.Persistence.Interceptors;
 using ChronoLith.Brocal.Infrastructure.Persistence.Seeding;
 using ChronoLith.Brocal.Infrastructure.Platform;
 using ChronoLith.Brocal.Infrastructure.Tenancy;
+using ChronoLith.Licensing;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -43,14 +45,40 @@ public static class DependencyInjection
         services.AddOptions<EmailOptions>().Bind(configuration.GetSection(EmailOptions.SectionName));
         services.AddOptions<WhatsAppOptions>().Bind(configuration.GetSection(WhatsAppOptions.SectionName));
         services.AddOptions<JobsOptions>().Bind(configuration.GetSection(JobsOptions.SectionName));
+        services.AddOptions<IndicatorOptions>().Bind(configuration.GetSection(IndicatorOptions.SectionName));
 
         AddPersistence(services, configuration);
         AddSecurity(services, configuration);
         AddFilesAndDocuments(services, configuration);
         AddIntegrations(services, configuration);
+        AddLicensing(services, configuration);
 
         return services;
     }
+
+    /// <summary><c>Tenancy:Mode = Standalone</c>: own Keycloak realm, platform administrators and ChronoLith license.</summary>
+    public static bool IsStandaloneMode(this IConfiguration configuration) =>
+        string.Equals(configuration[$"{TenancyOptions.SectionName}:Mode"], "Standalone", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// ChronoLith license of the installation, standalone mode only (as a module of ChronoLith the Shell validates
+    /// the license and nothing is registered). Program initializes it after migrating the database.
+    /// </summary>
+    private static void AddLicensing(IServiceCollection services, IConfiguration configuration)
+    {
+        if (!configuration.IsStandaloneMode())
+        {
+            return;
+        }
+
+        // Public Keycloak URL: development licenses are accepted only when it is localhost (or in Development).
+        services.AddChronoLithLicensing(configuration, LicenseProduct, sp => sp.GetRequiredService<IOptions<KeycloakOptions>>().Value.AuthServerUrl);
+        services.AddScoped<ILicenseStore, LicenseStore>();
+        services.AddScoped<ILicenseUsageProvider, LicenseUsageProvider>();
+    }
+
+    /// <summary>Product code of Brocal in the ChronoLith licenses.</summary>
+    public const string LicenseProduct = "brocal";
 
     private static void AddPersistence(IServiceCollection services, IConfiguration configuration)
     {
@@ -61,6 +89,7 @@ public static class DependencyInjection
         services.AddScoped<TenantInterceptor>();
         services.AddScoped<AuditableEntityInterceptor>();
         services.AddScoped<AuditTrailInterceptor>();
+        services.AddScoped<IndicatorChangeInterceptor>();
 
         services.AddDbContext<BrocalDbContext>((serviceProvider, options) => options
             .UseNpgsql(connectionString, npgsql => npgsql
@@ -71,7 +100,8 @@ public static class DependencyInjection
             .AddInterceptors(
                 serviceProvider.GetRequiredService<TenantInterceptor>(),
                 serviceProvider.GetRequiredService<AuditableEntityInterceptor>(),
-                serviceProvider.GetRequiredService<AuditTrailInterceptor>()));
+                serviceProvider.GetRequiredService<AuditTrailInterceptor>(),
+                serviceProvider.GetRequiredService<IndicatorChangeInterceptor>()));
 
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<BrocalDbContext>());
         services.AddScoped<IFolioService, FolioService>();
@@ -101,8 +131,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthorizationHandler, TenantPermissionHandler>();
         services.AddScoped<IAuthorizationHandler, PlatformAdminHandler>();
 
-        var standalone = string.Equals(configuration[$"{TenancyOptions.SectionName}:Mode"], "Standalone", StringComparison.OrdinalIgnoreCase);
-        if (standalone)
+        if (configuration.IsStandaloneMode())
         {
             services.AddScoped<IPlatformAccessService, StandalonePlatformAccessService>();
         }
@@ -147,7 +176,7 @@ public static class DependencyInjection
 
     private static void AddIntegrations(IServiceCollection services, IConfiguration configuration)
     {
-        var standalone = string.Equals(configuration[$"{TenancyOptions.SectionName}:Mode"], "Standalone", StringComparison.OrdinalIgnoreCase);
+        var standalone = configuration.IsStandaloneMode();
 
         services.AddSingleton<ServiceAccountTokenProvider>();
         services.AddTransient<ServiceAccountTokenHandler>();
@@ -166,9 +195,35 @@ public static class DependencyInjection
             http.Timeout = TimeSpan.FromSeconds(10);
         }
 
-        services.AddHttpClient<IShellCatalogClient, ShellCatalogClient>(ConfigureShell);
         services.AddHttpClient<IChronoLithAppearance, ChronoLithAppearance>(ConfigureShell);
         services.AddHttpClient(ModuleRegistrationService.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(15));
+
+        // Shared catalogs of ChronoLith: local replica fed by the change feed with the service account of the Shell
+        // (the module's own one, or Shell:ClientId standalone) and writes to the master; disabled without them.
+        services.AddSingleton<ShellServiceAccountTokenProvider>();
+        services.AddScoped<ISharedCatalogs, SharedCatalogReplica>();
+        services.AddScoped<ICatalogReplica, CatalogReplicaStore>();
+        services.AddHttpClient<ICatalogFeedClient, ShellCatalogFeedClient>((sp, http) =>
+        {
+            ConfigureShell(sp, http);
+            http.Timeout = TimeSpan.FromSeconds(60);
+        });
+        services.AddHttpClient<IMasterCatalogWriter, ShellMasterCatalogWriter>(ConfigureShell);
+        services.AddSingleton<ICatalogSyncRunner, CatalogSyncRunner>();
+
+        // Indicators published to the Shell (same connection and service account): outbox written by
+        // IndicatorChangeInterceptor in the business transaction, processed by IndicatorPublishingService.
+        services.AddSingleton(sp => IndicatorAvailability.Settings(
+            sp.GetRequiredService<IOptions<IndicatorOptions>>().Value,
+            sp.GetRequiredService<IOptions<ModuleRegistrationOptions>>().Value,
+            sp.GetRequiredService<IOptions<TenancyOptions>>().Value));
+        services.AddScoped<IIndicatorOutbox, IndicatorOutboxStore>();
+        services.AddHttpClient<IIndicatorClient, ShellIndicatorClient>((sp, http) =>
+        {
+            ConfigureShell(sp, http);
+            http.Timeout = TimeSpan.FromSeconds(30);
+        });
+        services.AddSingleton<IndicatorPublishingRunner>();
 
         if (!standalone && configuration.GetValue($"{ModuleRegistrationOptions.SectionName}:Enabled", true))
         {
@@ -181,6 +236,8 @@ public static class DependencyInjection
         {
             services.AddHostedService<OutboxDispatcher>();
             services.AddHostedService<ScheduledJobsService>();
+            services.AddHostedService<CatalogSyncService>();
+            services.AddHostedService<IndicatorPublishingService>();
         }
     }
 }

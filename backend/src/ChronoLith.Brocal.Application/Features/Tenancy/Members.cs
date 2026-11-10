@@ -115,6 +115,7 @@ internal sealed class InviteMemberCommandValidator : AbstractValidator<InviteMem
 internal sealed class InviteMemberCommandHandler(
     IApplicationDbContext db,
     IQuotaGuard quotas,
+    ILicenseLimits license,
     IIdentityProvisioning identity,
     IAuditLog audit) : ICommandHandler<InviteMemberCommand, InviteMemberResult>
 {
@@ -135,6 +136,12 @@ internal sealed class InviteMemberCommandHandler(
         if (quota.IsFailure)
         {
             return quota.Error;
+        }
+
+        var licensed = await license.EnsureCanAddUserAsync(email, command.CustomerId is not null, cancellationToken);
+        if (licensed.IsFailure)
+        {
+            return licensed.Error;
         }
 
         var references = await MemberReferences.ValidateAsync(db, command.RoleIds, command.EmployeeId, command.CustomerId, cancellationToken);
@@ -180,7 +187,7 @@ internal sealed class InviteMemberCommandHandler(
 
 public sealed record UpdateMemberCommand(Guid Id, string FullName, bool IsTenantAdmin, IReadOnlyList<Guid> RoleIds, Guid? EmployeeId, Guid? CustomerId) : ICommand;
 
-internal sealed class UpdateMemberCommandHandler(IApplicationDbContext db, ITenantContext tenantContext, IQuotaGuard quotas) : ICommandHandler<UpdateMemberCommand>
+internal sealed class UpdateMemberCommandHandler(IApplicationDbContext db, ITenantContext tenantContext, IQuotaGuard quotas, ILicenseLimits license) : ICommandHandler<UpdateMemberCommand>
 {
     public async Task<Result> Handle(UpdateMemberCommand command, CancellationToken cancellationToken)
     {
@@ -207,6 +214,16 @@ internal sealed class UpdateMemberCommandHandler(IApplicationDbContext db, ITena
             {
                 return quota;
             }
+
+            // Moving between staff and customer portal counts against the other limit of the license.
+            if (membership.Status != MembershipStatus.Disabled)
+            {
+                var licensed = await license.EnsureCanAddUserAsync(membership.Email, command.CustomerId is not null, cancellationToken);
+                if (licensed.IsFailure)
+                {
+                    return licensed;
+                }
+            }
         }
 
         var references = await MemberReferences.ValidateAsync(db, command.RoleIds, command.EmployeeId, command.CustomerId, cancellationToken);
@@ -227,7 +244,7 @@ internal sealed class UpdateMemberCommandHandler(IApplicationDbContext db, ITena
 
 public sealed record SetMemberStatusCommand(Guid Id, bool Enabled) : ICommand;
 
-internal sealed class SetMemberStatusCommandHandler(IApplicationDbContext db, ITenantContext tenantContext, IQuotaGuard quotas, IAuditLog audit)
+internal sealed class SetMemberStatusCommandHandler(IApplicationDbContext db, ITenantContext tenantContext, IQuotaGuard quotas, ILicenseLimits license, IAuditLog audit)
     : ICommandHandler<SetMemberStatusCommand>
 {
     public async Task<Result> Handle(SetMemberStatusCommand command, CancellationToken cancellationToken)
@@ -249,6 +266,12 @@ internal sealed class SetMemberStatusCommandHandler(IApplicationDbContext db, IT
             if (quota.IsFailure)
             {
                 return quota;
+            }
+
+            var licensed = await license.EnsureCanAddUserAsync(membership.Email, membership.IsPortalUser, cancellationToken);
+            if (licensed.IsFailure)
+            {
+                return licensed;
             }
 
             membership.Enable();

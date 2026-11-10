@@ -647,6 +647,21 @@
   }
 }
 
+// Notice of the ChronoLith license under the toolbar (standalone mode).
+.br-license-banner {
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 8px 16px 0;
+
+  &__text {
+    flex: 1 1 240px;
+  }
+
+  > a.mat-mdc-button {
+    color: inherit;
+  }
+}
+
 // ---- Tables -------------------------------------------------------------------------------------------
 
 .br-table {

@@ -1,6 +1,9 @@
+import { firstValueFrom } from 'rxjs';
 import { num } from '../../core/format';
+import { CatalogPushResult } from '../../core/models';
 import { P } from '../../core/permissions';
-import { CatalogConfig, FieldDef, FieldOption } from '../../shared/crud/fields';
+import { sharedCatalogsEnabled } from '../../core/session';
+import { CatalogConfig, FieldDef, FieldOption, RowAction } from '../../shared/crud/fields';
 
 // ---- SAT catalogs used by customers and services (most common values in the oilfield services sector) ----
 
@@ -48,6 +51,28 @@ const code: FieldDef = { key: 'code', label: 'fields.code', type: 'text', requir
 const name: FieldDef = { key: 'name', label: 'fields.name', type: 'text', required: true, maxLength: 200 };
 const notes: FieldDef = { key: 'notes', label: 'fields.notes', type: 'textarea', span: 'full', maxLength: 2000 };
 
+// ---- ChronoLith shared catalogs (only when the installation is connected to a Shell) ---------------------
+
+/** Field of the ChronoLith catalog: filters the wells and facilities and is required to create a well in the master. */
+const shellField: FieldDef = { key: 'shellFieldId', label: 'fields.shellField', type: 'lookup', catalog: 'catalogs/shell/fields', hint: 'fields.shellFieldHint', showIf: (v) => sharedCatalogsEnabled() && (v['type'] === 'well' || v['type'] === 'facility') };
+const shellWell: FieldDef = { key: 'shellWellId', label: 'fields.shellWell', type: 'lookup', catalog: 'catalogs/shell/wells', parent: 'shellFieldId', hint: 'fields.shellLinkHint', showIf: (v) => sharedCatalogsEnabled() && v['type'] === 'well' };
+const shellFacility: FieldDef = { key: 'shellFacilityId', label: 'fields.shellFacility', type: 'lookup', catalog: 'catalogs/shell/facilities', parent: 'shellFieldId', hint: 'fields.shellLinkHint', showIf: (v) => sharedCatalogsEnabled() && v['type'] === 'facility' };
+const shellCompany: FieldDef = { key: 'shellCompanyId', label: 'fields.shellCompany', type: 'lookup', catalog: 'catalogs/shell/companies', hint: 'fields.shellCompanyHint', showIf: () => sharedCatalogsEnabled() };
+
+/** "Publicar en ChronoLith": creates the record in the master (or links it by code) and pushes its shared fields. */
+function publishToShell(api: string, linkKey: string): RowAction {
+  return {
+    key: 'publishToShell',
+    icon: 'cloud_upload',
+    label: 'sharedCatalogs.publish',
+    show: (row) => sharedCatalogsEnabled() && !row[linkKey],
+    run: async (row, ctx) => {
+      const result = await firstValueFrom(ctx.api.post<CatalogPushResult>(`${api}/${row['id'] as string}/shell`));
+      ctx.dialogs.info(ctx.i18n.t(`sharedCatalogs.outcomes.${result.outcome}`, { detail: result.detail ?? '' }));
+    },
+  };
+}
+
 // ---- Commercial master data ------------------------------------------------------------------------------
 
 export const CUSTOMERS: CatalogConfig = {
@@ -78,6 +103,7 @@ export const CUSTOMERS: CatalogConfig = {
     { key: 'phone', label: 'fields.phone', type: 'text', maxLength: 40 },
     { key: 'color', label: 'fields.color', type: 'color', hint: 'fields.colorHint' },
     { key: 'requiresCopade', label: 'fields.requiresCopade', type: 'checkbox' },
+    shellCompany,
     { key: 'address', label: 'fields.address', type: 'textarea', span: 'full', maxLength: 500 },
     {
       key: 'contacts',
@@ -98,6 +124,7 @@ export const CUSTOMERS: CatalogConfig = {
   ],
   defaults: () => ({ paymentMethod: 'PPD', paymentForm: '99', cfdiUse: 'G03', creditDays: 30, contacts: [] }),
   invalidates: ['catalogs/sites', 'catalogs/contracts'],
+  rowActions: [publishToShell('catalogs/customers', 'shellCompanyId')],
 };
 
 export const CONTRACTS: CatalogConfig = {
@@ -147,7 +174,10 @@ export const SITES: CatalogConfig = {
     name,
     { key: 'type', label: 'fields.type', type: 'enum', enum: 'siteType', values: ['well', 'field', 'facility', 'yard', 'other'], required: true },
     { key: 'customerId', label: 'fields.customer', type: 'lookup', catalog: 'catalogs/customers', hint: 'fields.siteCustomerHint' },
-    { key: 'fieldName', label: 'fields.field', type: 'text' },
+    shellField,
+    shellWell,
+    shellFacility,
+    { key: 'fieldName', label: 'fields.field', type: 'text', hint: 'fields.siteFieldNameHint' },
     { key: 'municipality', label: 'fields.municipality', type: 'text' },
     { key: 'state', label: 'fields.state', type: 'text' },
     { key: 'postalCode', label: 'fields.postalCode', type: 'text', maxLength: 5, pattern: '^\\d{5}$', hint: 'fields.postalCodeCartaPorte' },
@@ -156,6 +186,10 @@ export const SITES: CatalogConfig = {
     notes,
   ],
   defaults: () => ({ type: 'well' }),
+  // One `shellCatalogId` in the API; the form shows a well or a facility selector according to the type.
+  toForm: (dto) => ({ ...dto, shellWellId: dto['type'] === 'well' ? dto['shellCatalogId'] : null, shellFacilityId: dto['type'] === 'facility' ? dto['shellCatalogId'] : null }),
+  toPayload: ({ shellWellId, shellFacilityId, ...value }) => ({ ...value, shellCatalogId: value['type'] === 'well' ? (shellWellId ?? null) : value['type'] === 'facility' ? (shellFacilityId ?? null) : null }),
+  rowActions: [publishToShell('catalogs/sites', 'shellCatalogId')],
 };
 
 // ---- Services and prices -------------------------------------------------------------------------------

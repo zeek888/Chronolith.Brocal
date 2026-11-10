@@ -5,6 +5,7 @@ using ChronoLith.Brocal.Application.Features.Compliance;
 using ChronoLith.Brocal.Domain.Common;
 using ChronoLith.Brocal.Domain.Compliance;
 using ChronoLith.Brocal.Domain.Platform;
+using ChronoLith.Licensing.AspNetCore;
 
 namespace ChronoLith.Brocal.Api.Endpoints;
 
@@ -50,7 +51,8 @@ internal sealed class ComplianceEndpoints : IEndpoint
         group.MapPost("package", async (PackageRequest body, IQueryHandler<GenerateDocumentPackageQuery, FileContent> handler, CancellationToken ct) =>
                 (await handler.Handle(new GenerateDocumentPackageQuery(body.RequirementId, body.EmployeeIds, body.UnitIds, body.Title), ct)).ToFile())
             .RequirePermission(Permissions.PersonnelPackages, Permissions.PermitsManage, Permissions.PersonnelManage)
-            .WithSummary("Paquete documental (ZIP con carátula PDF y archivos) por contrato o cliente.");
+            .WithSummary("Paquete documental (ZIP con carátula PDF y archivos) por contrato o cliente.")
+            .AllowWhenLicenseExpired(); // An export (POST only for the body): it changes no data.
 
         group.MapGet("expiring", async (int? days, int? take, IQueryHandler<GetExpiringDocumentsQuery, IReadOnlyList<ComplianceDocumentDto>> handler, CancellationToken ct) =>
                 (await handler.Handle(new GetExpiringDocumentsQuery(days ?? 30, take ?? 20), ct)).ToOk())

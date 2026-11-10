@@ -1,7 +1,9 @@
 import { AbstractControl, FormArray, FormControl, FormGroup, ValidatorFn, Validators } from '@angular/forms';
-import { Query } from '../../core/api';
+import { BrocalApi, Query } from '../../core/api';
+import { I18n } from '../../core/i18n';
 import { FileCategory, Lookup } from '../../core/models';
 import { Column } from '../data-table';
+import { Dialogs } from '../dialogs';
 
 export type FieldType =
   | 'text'
@@ -75,6 +77,23 @@ export interface FilterDef {
   catalog?: string;
 }
 
+/** Services available to a row action of a catalog page. */
+export interface RowActionContext {
+  api: BrocalApi;
+  i18n: I18n;
+  dialogs: Dialogs;
+}
+
+/** Extra entry of the row menu of a catalog (besides edit, activate and delete); the list reloads after it runs. */
+export interface RowAction<T = Record<string, unknown>> {
+  key: string;
+  icon: string;
+  /** Translation key. */
+  label: string;
+  show?: (row: T) => boolean;
+  run: (row: T, ctx: RowActionContext) => Promise<void>;
+}
+
 export interface CatalogConfig<T = Record<string, unknown>> {
   /** Translation key of the title (`nav.<key>`) and of the singular (`catalogs.<key>`). */
   key: string;
@@ -96,6 +115,7 @@ export interface CatalogConfig<T = Record<string, unknown>> {
   dialogWidth?: string;
   /** Lookups to refresh after saving (default: the catalog itself). */
   invalidates?: string[];
+  rowActions?: RowAction<T>[];
 }
 
 export function lookupFilter(parentValue: unknown): (item: Lookup) => boolean {

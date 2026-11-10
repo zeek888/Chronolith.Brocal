@@ -3,7 +3,9 @@ using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Messaging;
 using ChronoLith.Brocal.Application.Common;
 using ChronoLith.Brocal.Application.Features.Platform;
+using ChronoLith.Brocal.Application.Features.SharedCatalogs;
 using ChronoLith.Brocal.Domain.Platform;
+using ChronoLith.Licensing.AspNetCore;
 
 namespace ChronoLith.Brocal.Api.Endpoints;
 
@@ -15,7 +17,8 @@ internal sealed class MeEndpoints : IEndpoint
 
         group.MapPost("session", async (ICommandHandler<StartSessionCommand, SessionDto> handler, CancellationToken ct) =>
                 (await handler.Handle(new StartSessionCommand(), ct)).ToOk())
-            .WithSummary("Liga las invitaciones pendientes a la cuenta de Keycloak y registra el acceso.");
+            .WithSummary("Liga las invitaciones pendientes a la cuenta de Keycloak y registra el acceso.")
+            .AllowWhenLicenseExpired();
 
         group.MapGet("context", async (IQueryHandler<GetMyContextQuery, MyContextDto> handler, CancellationToken ct) =>
                 (await handler.Handle(new GetMyContextQuery(), ct)).ToOk())
@@ -73,6 +76,28 @@ internal sealed class PlatformEndpoints : IEndpoint
         jobs.MapPost("run", async (ICommandHandler<RunScheduledJobsCommand, ScheduledJobRunDto> handler, CancellationToken ct) =>
                 (await handler.Handle(new RunScheduledJobsCommand(), ct)).ToOk())
             .WithSummary("Ejecuta ahora las revisiones de todas las empresas operativas.");
+
+        var catalogs = group.MapGroup("shared-catalogs").RequirePlatformAdmin();
+
+        catalogs.MapGet("", async (IQueryHandler<GetSharedCatalogStatusQuery, SharedCatalogStatusDto> handler, CancellationToken ct) =>
+                (await handler.Handle(new GetSharedCatalogStatusQuery(), ct)).ToOk())
+            .WithSummary("Réplica de los catálogos de ChronoLith: cursor del feed, última consulta, conteos por catálogo, errores y envíos al maestro pendientes o rechazados.");
+
+        catalogs.MapPost("sync", async (ICommandHandler<RunCatalogSyncCommand, CatalogSyncRunSummary> handler, CancellationToken ct) =>
+                (await handler.Handle(new RunCatalogSyncCommand(false), ct)).ToOk())
+            .WithSummary("Consulta el feed de cambios ahora (y envía los pendientes al maestro).");
+
+        catalogs.MapPost("reload", async (ICommandHandler<RunCatalogSyncCommand, CatalogSyncRunSummary> handler, CancellationToken ct) =>
+                (await handler.Handle(new RunCatalogSyncCommand(true), ct)).ToOk())
+            .WithSummary("Recarga los catálogos completos desde el Shell y continúa el feed desde el último cambio.");
+
+        catalogs.MapPost("pushes/{id:guid}/retry", async (Guid id, ICommandHandler<RetryCatalogPushCommand> handler, CancellationToken ct) =>
+                (await handler.Handle(new RetryCatalogPushCommand(id), ct)).ToNoContent())
+            .WithSummary("Vuelve a intentar un envío al maestro rechazado o agotado.");
+
+        catalogs.MapDelete("pushes/{id:guid}", async (Guid id, ICommandHandler<DiscardCatalogPushCommand> handler, CancellationToken ct) =>
+                (await handler.Handle(new DiscardCatalogPushCommand(id), ct)).ToNoContent())
+            .WithSummary("Descarta un envío al maestro.");
     }
 
     internal sealed record TenantProfileRequest(string Name, string? LegalName, string? TaxId, string? ContactEmail, string? ContactPhone, string Plan);

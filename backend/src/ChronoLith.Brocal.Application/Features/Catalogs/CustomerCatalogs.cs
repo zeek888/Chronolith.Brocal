@@ -1,8 +1,11 @@
 using System.Linq.Expressions;
+using ChronoLith.Brocal.Application.Abstractions;
 using ChronoLith.Brocal.Application.Abstractions.Data;
 using ChronoLith.Brocal.Application.Common;
+using ChronoLith.Brocal.Application.Features.SharedCatalogs;
 using ChronoLith.Brocal.Domain.Abstractions;
 using ChronoLith.Brocal.Domain.Commercial;
+using ChronoLith.Brocal.Domain.Platform;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
@@ -49,7 +52,7 @@ internal sealed class CustomerDataValidator : AbstractValidator<CustomerData>
     }
 }
 
-internal sealed class CustomerSpec(IApplicationDbContext db) : ICatalogSpec<Customer, CustomerData, CustomerDto>
+internal sealed class CustomerSpec(IApplicationDbContext db, MasterCatalogSync masterSync) : ICatalogSpec<Customer, CustomerData, CustomerDto>
 {
     public string Name => CustomerErrors.Catalog;
 
@@ -64,6 +67,10 @@ internal sealed class CustomerSpec(IApplicationDbContext db) : ICatalogSpec<Cust
     public Result<Customer> Create(CustomerData data) => Customer.Create(data);
 
     public Result Update(Customer entity, CustomerData data) => entity.Update(data);
+
+    /// <summary>A customer linked to a company of ChronoLith sends its shared fields to the master (user token or outbox).</summary>
+    public Task AfterCommitAsync(Customer entity, bool created, CancellationToken cancellationToken) =>
+        entity.ShellCompanyId is null ? Task.CompletedTask : masterSync.PushCustomerAsync(entity, allowCreate: false, cancellationToken);
 
     public async Task<bool> IsInUseAsync(Guid id, CancellationToken cancellationToken) =>
         await db.Tickets.AnyAsync(t => t.CustomerId == id, cancellationToken)
@@ -163,6 +170,7 @@ public sealed record SiteDto(
     decimal? Latitude,
     decimal? Longitude,
     Guid? ShellCatalogId,
+    Guid? ShellFieldId,
     string? Notes,
     bool IsActive,
     DateTimeOffset CreatedAt,
@@ -180,14 +188,14 @@ internal sealed class SiteDataValidator : AbstractValidator<SiteData>
     }
 }
 
-internal sealed class SiteSpec(IApplicationDbContext db) : ICatalogSpec<Site, SiteData, SiteDto>
+internal sealed class SiteSpec(IApplicationDbContext db, ISharedCatalogs sharedCatalogs, MasterCatalogSync masterSync) : ICatalogSpec<Site, SiteData, SiteDto>
 {
     public string Name => SiteErrors.Catalog;
 
     public Expression<Func<Site, SiteDto>> Projection => s => new SiteDto(
         s.Id, s.Code, s.Name, s.Type, s.CustomerId,
         db.Customers.Where(x => x.Id == s.CustomerId).Select(x => x.Name).FirstOrDefault(),
-        s.FieldName, s.Municipality, s.State, s.PostalCode, s.Latitude, s.Longitude, s.ShellCatalogId, s.Notes, s.IsActive, s.CreatedAt, s.UpdatedAt);
+        s.FieldName, s.Municipality, s.State, s.PostalCode, s.Latitude, s.Longitude, s.ShellCatalogId, s.ShellFieldId, s.Notes, s.IsActive, s.CreatedAt, s.UpdatedAt);
 
     public Expression<Func<Site, Guid?>>? LookupParent => s => s.CustomerId;
 
@@ -201,6 +209,29 @@ internal sealed class SiteSpec(IApplicationDbContext db) : ICatalogSpec<Site, Si
 
     public Task<Result> ValidateAsync(SiteData data, Site? existing, CancellationToken cancellationToken) =>
         References.EnsureAsync<Customer>(db, data.CustomerId, CustomerErrors.Catalog, cancellationToken);
+
+    /// <summary>A site linked to a well or facility of ChronoLith takes the field of the master when the form left it empty.</summary>
+    public async Task AfterSaveAsync(Site entity, bool created, CancellationToken cancellationToken)
+    {
+        if (entity.ShellCatalogId is not { } shellId || entity.ShellCatalog is not { } catalog || !sharedCatalogs.IsAvailable)
+        {
+            return;
+        }
+
+        var master = await sharedCatalogs.FindAsync(catalog, shellId, cancellationToken);
+        if (master is null)
+        {
+            return;
+        }
+
+        var fieldId = entity.ShellFieldId ?? master.ParentId;
+        var fieldName = string.IsNullOrWhiteSpace(entity.FieldName) && fieldId is { } f ? (await sharedCatalogs.FindAsync(SharedCatalogNames.Fields, f, cancellationToken))?.Name : null;
+        entity.LinkToCatalog(shellId, fieldId, fieldName);
+    }
+
+    /// <summary>A site linked to the master sends its shared fields (code, name, coordinates, field) to ChronoLith.</summary>
+    public Task AfterCommitAsync(Site entity, bool created, CancellationToken cancellationToken) =>
+        entity.ShellCatalogId is null ? Task.CompletedTask : masterSync.PushSiteAsync(entity, allowCreate: false, cancellationToken);
 
     public async Task<bool> IsInUseAsync(Guid id, CancellationToken cancellationToken) =>
         await db.Tickets.AnyAsync(t => t.SiteId == id, cancellationToken)

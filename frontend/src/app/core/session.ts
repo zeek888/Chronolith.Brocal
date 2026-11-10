@@ -8,6 +8,14 @@ import { BrocalNav } from './nav';
 
 const TENANT_KEY = 'brocal.tenant';
 
+/** Set by the session once the API answers; read by static catalog configurations (`showIf` of the ChronoLith fields). */
+let sharedCatalogs = false;
+
+/** Whether this installation is connected to a Shell of ChronoLith (its wells, facilities, fields and companies can be linked). */
+export function sharedCatalogsEnabled(): boolean {
+  return sharedCatalogs;
+}
+
 /**
  * Who the user is in Brocal and on which company they work: memberships, the selected company (branding,
  * contracted modules, permissions of the user's roles) and the platform role. The selected company travels
@@ -24,6 +32,7 @@ export class BrocalSession {
   readonly tenant = signal<CurrentTenant | null>(null);
   readonly mode = signal<string>('ChronoLith');
   readonly version = signal<string>('');
+  readonly sharedCatalogs = signal(false);
   readonly loaded = signal(false);
   readonly error = signal<string | null>(null);
 
@@ -72,6 +81,8 @@ export class BrocalSession {
     this.tenants.set(context.tenants);
     this.mode.set(context.mode);
     this.version.set(context.version);
+    this.sharedCatalogs.set(context.sharedCatalogs ?? false);
+    sharedCatalogs = context.sharedCatalogs ?? false;
 
     const stored = readStored();
     const preferred = context.tenants.find((t) => t.slug === stored && t.status !== 'cancelled') ?? context.tenants.find((t) => t.status !== 'cancelled');
@@ -137,6 +148,9 @@ export function requires(...anyOf: string[]): CanActivateFn {
 
 /** Platform administrators only (companies, quotas, modules). */
 export const platformAdminOnly: CanActivateFn = (route) => (inject(BrocalSession).isPlatformAdmin() ? true : inject(BrocalNav).home(route));
+
+/** Pages that exist only when the API runs standalone (the ChronoLith license). */
+export const standaloneApiOnly: CanActivateFn = (route) => (inject(BrocalSession).mode() === 'Standalone' ? true : inject(BrocalNav).home(route));
 
 /** Staff of the company (customer portal users go back to the home page). */
 export const staffOnly: CanActivateFn = (route) => (!inject(BrocalSession).isPortalUser() ? true : inject(BrocalNav).home(route));

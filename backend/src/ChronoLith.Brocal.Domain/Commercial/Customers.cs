@@ -145,6 +145,20 @@ public sealed class Customer : CatalogAggregate
 
         return Result.Success();
     }
+
+    /// <summary>Binds the customer to the company the master created for it.</summary>
+    public void LinkToCompany(Guid shellCompanyId) => ShellCompanyId = shellCompanyId;
+
+    /// <summary>The master company changed later than this customer: its name wins (fiscal data stays local).</summary>
+    public Result ApplyMaster(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > MaxNameLength)
+        {
+            return CatalogErrors.InvalidName;
+        }
+
+        return SetIdentity(Code, name, Notes);
+    }
 }
 
 public sealed record CustomerData(
@@ -323,6 +337,17 @@ public sealed class Site : CatalogAggregate
     /// <summary>Well or facility of the ChronoLith shared catalog.</summary>
     public Guid? ShellCatalogId { get; private set; }
 
+    /// <summary>Field of the shared catalog (the master requires it to create a well; it also fills <see cref="FieldName"/>).</summary>
+    public Guid? ShellFieldId { get; private set; }
+
+    /// <summary>Catalog of the master this site maps to, by its type; null for sites the master does not model.</summary>
+    public string? ShellCatalog => Type switch
+    {
+        SiteType.Well => "wells",
+        SiteType.Facility => "facilities",
+        _ => null
+    };
+
     public static Result<Site> Create(SiteData data)
     {
         var site = new Site();
@@ -357,6 +382,46 @@ public sealed class Site : CatalogAggregate
         Latitude = data.Latitude;
         Longitude = data.Longitude;
         ShellCatalogId = data.ShellCatalogId;
+        ShellFieldId = data.ShellFieldId;
+        return Result.Success();
+    }
+
+    /// <summary>Binds the site to an element of the master (chosen by the user or created by Brocal), with its field.</summary>
+    public void LinkToCatalog(Guid shellCatalogId, Guid? shellFieldId, string? fieldName)
+    {
+        ShellCatalogId = shellCatalogId;
+        ShellFieldId = shellFieldId ?? ShellFieldId;
+        if (!string.IsNullOrWhiteSpace(fieldName))
+        {
+            FieldName = fieldName.Trim();
+        }
+    }
+
+    /// <summary>
+    /// The master changed later than this site: the shared fields win (code when it does not collide in the company,
+    /// name, coordinates and field). Municipality, postal code and customer stay local.
+    /// </summary>
+    public Result ApplyMaster(string? code, string name, decimal? latitude, decimal? longitude, Guid? shellFieldId, string? fieldName)
+    {
+        if (latitude is < -90 or > 90 || longitude is < -180 or > 180)
+        {
+            return SiteErrors.InvalidCoordinates;
+        }
+
+        var identity = SetIdentity(code ?? Code, name, Notes);
+        if (identity.IsFailure)
+        {
+            return identity;
+        }
+
+        Latitude = latitude;
+        Longitude = longitude;
+        ShellFieldId = shellFieldId ?? ShellFieldId;
+        if (!string.IsNullOrWhiteSpace(fieldName))
+        {
+            FieldName = fieldName.Trim();
+        }
+
         return Result.Success();
     }
 }
@@ -373,7 +438,8 @@ public sealed record SiteData(
     decimal? Latitude,
     decimal? Longitude,
     Guid? ShellCatalogId,
-    string? Notes);
+    string? Notes,
+    Guid? ShellFieldId = null);
 
 public static class SiteErrors
 {

@@ -19,8 +19,9 @@ public sealed class SecurityTests(BrocalApiFactory factory)
         "api/integrations/feeds/exports/{dataset}"
     ];
 
-    /// <summary>Routes used before a company is selected.</summary>
-    private static readonly HashSet<string> SessionOnlyRoutes = ["api/me/session", "api/me/context", "api/platform/modules", "api/platform/chronolith-theme"];
+    /// <summary>Routes used before a company is selected (the license notice is shown to every user).</summary>
+    private static readonly HashSet<string> SessionOnlyRoutes =
+        ["api/me/session", "api/me/context", "api/platform/modules", "api/platform/chronolith-theme", "api/license/status"];
 
     [Fact]
     public void Every_endpoint_requires_a_company_permission_unless_explicitly_listed()

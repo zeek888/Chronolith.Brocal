@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Actualiza Brocal en el servidor (deploy/docker-compose.yml, proyecto brocal):
 #   1. trae el código de GitHub (git pull --ff-only; se detiene si el servidor tiene cambios locales);
-#   2. compila las imágenes de la web y de la API, de una en una;
+#   2. comprueba que haya licencia de ChronoLith (LICENSE_KEY o una cargada desde la pantalla Licencia) y compila las
+#      imágenes de la web y de la API, de una en una;
 #   3. si cambió la imagen de la API, respalda la base en backups/ (la API aplica sus migraciones al arrancar);
 #   4. recrea solo los contenedores que cambiaron, espera a que estén sanos y comprueba la web y la API en
 #      http://127.0.0.1:BROCAL_WEB_PORT;
@@ -142,6 +143,20 @@ pull_code() {
   fi
 }
 
+# La API no arranca sin una licencia de ChronoLith válida: LICENSE_KEY (variable del entorno o de deploy/.env) o la
+# cargada desde la pantalla Licencia, que queda en la base. Sin ninguna de las dos se detiene antes de compilar, con
+# los contenedores como estaban (docs/produccion.md, Licencia). Que la licencia sea válida lo comprueba la API.
+check_license() {
+  local stored=""
+  [ -z "${LICENSE_KEY:-$(env_value LICENSE_KEY)}" ] || return 0
+  if [ -n "$(compose ps -q --status running brocal-db 2>/dev/null || true)" ]; then
+    # shellcheck disable=SC2016
+    stored="$(compose exec -T brocal-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select 1 from brocal.installation_license where token is not null"' 2>/dev/null || true)"
+  fi
+  [ "$(printf '%s' "$stored" | tr -d '[:space:]')" = 1 ] ||
+    die "Falta la licencia de ChronoLith: define LICENSE_KEY en $ENV_FILE con el token emitido para esta instalación (docs/produccion.md, Licencia). Sin ella la API nueva no arrancaría; no se cambió nada."
+}
+
 build_images() {
   local svc log
   for svc in "${SERVICES[@]}"; do
@@ -263,6 +278,7 @@ update() {
   else
     echo "  · código del servidor: $(git -C "$ROOT" log -1 --format='%h %s' 2>/dev/null || echo 'sin git')"
   fi
+  check_license
 
   local svc fp
   declare -A before_fp=()

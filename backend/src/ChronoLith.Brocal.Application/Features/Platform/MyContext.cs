@@ -110,7 +110,8 @@ public sealed record CurrentTenantDto(
     CurrentMembershipDto Membership,
     bool FiscalComplete);
 
-public sealed record MyContextDto(CurrentUserDto User, IReadOnlyList<MyTenantDto> Tenants, CurrentTenantDto? Tenant, string Mode, string Version);
+/// <param name="SharedCatalogs">Connected to a Shell of ChronoLith: the forms offer its wells, facilities, fields and companies.</param>
+public sealed record MyContextDto(CurrentUserDto User, IReadOnlyList<MyTenantDto> Tenants, CurrentTenantDto? Tenant, string Mode, string Version, bool SharedCatalogs);
 
 public sealed record GetMyContextQuery : IQuery<MyContextDto>;
 
@@ -120,6 +121,7 @@ internal sealed class GetMyContextQueryHandler(
     ITenantContext tenantContext,
     IPlatformAccessService platformAccess,
     IFileService files,
+    ISharedCatalogs sharedCatalogs,
     IOptions<TenancyOptions> options) : IQueryHandler<GetMyContextQuery, MyContextDto>
 {
     public async Task<Result<MyContextDto>> Handle(GetMyContextQuery query, CancellationToken cancellationToken)
@@ -209,7 +211,8 @@ internal sealed class GetMyContextQueryHandler(
             list,
             current,
             options.Value.Mode,
-            typeof(GetMyContextQueryHandler).Assembly.GetName().Version?.ToString(3) ?? "1.0.0");
+            typeof(GetMyContextQueryHandler).Assembly.GetName().Version?.ToString(3) ?? "1.0.0",
+            sharedCatalogs.IsAvailable);
     }
 
     /// <summary>The signature binds the file to its company, so other companies' logos are signed for their own id.</summary>
@@ -220,10 +223,11 @@ internal sealed class GetMyContextQueryHandler(
 
 public sealed record GetModuleCatalogQuery : IQuery<IReadOnlyList<ModuleDto>>;
 
-internal sealed class GetModuleCatalogQueryHandler : IQueryHandler<GetModuleCatalogQuery, IReadOnlyList<ModuleDto>>
+internal sealed class GetModuleCatalogQueryHandler(ILicensedModules licensed) : IQueryHandler<GetModuleCatalogQuery, IReadOnlyList<ModuleDto>>
 {
     public Task<Result<IReadOnlyList<ModuleDto>>> Handle(GetModuleCatalogQuery query, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Success(ModuleDto.Catalog));
+        Task.FromResult(Result.Success<IReadOnlyList<ModuleDto>>(
+            ModuleDto.Catalog.Select(m => m with { Licensed = licensed.IsGranted(m.Code) }).ToList()));
 }
 
 // ---- ChronoLith theme ------------------------------------------------------------------------------

@@ -11,7 +11,9 @@ Documentación en `docs/`: `arquitectura.md`, `modulos.md`, `administracion.md`,
 ## Estructura
 
 - `backend/`: .NET 10 (`ChronoLith.Brocal.slnx`). `src/`: Domain, Application, Infrastructure y Api. `tests/`:
-  Domain.UnitTests, ArchitectureTests e IntegrationTests (Testcontainers; requieren Docker).
+  Domain.UnitTests, Application.UnitTests (feed de catálogos e indicadores contra un Shell simulado), ArchitectureTests
+  e IntegrationTests (Testcontainers; requieren Docker, salvo `SharedCatalogShellTests` e `IndicatorShellTests`). `nuget/`: paquetes de
+  licenciamiento de ChronoLith (fuente local de `backend/nuget.config`; los `.nupkg` sí van en git).
 - `frontend/`: Angular 22 sin zone.js, Material 3, Native Federation y Transloco (scope `brocal`).
 - `deploy/`: producción; `deploy/update.sh` actualiza el servidor (git pull, respaldo si cambia la API, imágenes de
   una en una, comprobación y `--revertir`). `infra/keycloak/`: realm y tema del modo independiente local.
@@ -23,7 +25,7 @@ Desde `backend/`:
 - Compilar: `dotnet build ChronoLith.Brocal.slnx`
 - Pruebas: ejecuta los binarios directamente, porque `dotnet test` reporta "Zero tests ran". Por ejemplo
   `tests\ChronoLith.Brocal.Domain.UnitTests\bin\Debug\net10.0\ChronoLith.Brocal.Domain.UnitTests.exe`; igual con
-  ArchitectureTests e IntegrationTests.
+  Application.UnitTests, ArchitectureTests e IntegrationTests (`-class <nombre completo>` filtra una clase).
 - Migración: `dotnet ef migrations add <Nombre> --project src\ChronoLith.Brocal.Infrastructure --startup-project src\ChronoLith.Brocal.Api --output-dir Persistence\Migrations`
 
 Desde `frontend/`:
@@ -50,6 +52,25 @@ Docker local:
 - Todo cambio de esquema lleva una migración nueva; no edites una migración ya aplicada.
 - Permisos en `Domain/Platform/Permissions.cs` y módulos en `Domain/Platform/BrocalModules.cs`, con nombres en
   español e inglés.
+- Licencia de ChronoLith solo en modo independiente (`AddLicensing` de Infrastructure y `Program.cs`); en modo
+  módulo no se registra nada. Una escritura que no es dato de negocio (sesión, notificaciones leídas, exportaciones
+  por POST) lleva `.AllowWhenLicenseExpired()`. Las pruebas de integración firman sus licencias (`TestLicenses`).
+  La licencia concede módulos (productos `brocal.<módulo>`; sin ellos, todos) que `TenantContext` aplica a cada
+  empresa con `ILicensedModules`, y límites de toda la instalación (`ILicenseLimits.All`) que `QuotaGuard` revisa
+  después de la cuota de la empresa. Un límite nuevo va en `ILicenseLimits`, en la pantalla Licencia y en
+  `docs/administracion.md`.
+- Catálogos del Shell: nunca se leen en vivo; se usa la réplica (`ISharedCatalogs`, tabla `shared_catalog_items`,
+  global, sin filtro por empresa) que llena `CatalogFeedConsumer` desde el feed de cambios (reglas en
+  `docs/integracion-chronolith.md`). Las escrituras al maestro pasan por `MasterCatalogSync` con
+  `X-ChronoLith-Source: brocal` y, si fallan por permisos o red, por el buzón `catalog_push_messages`. Todo se
+  activa solo con `Shell:ApiUrl` y la cuenta de servicio del realm `chronolith` (`Keycloak:ClientId` como módulo,
+  `Shell:ClientId` independiente); sin ellos Brocal usa solo sus catálogos.
+- Indicadores para el Shell (fuente `brocal`, contrato 7.4 de ChronoLith): definiciones y reglas en
+  `Application/Features/Indicators` (`BrocalIndicators`, `IndicatorCalculator` puro, `IndicatorDataLoader`,
+  `IndicatorPublisher`); el sujeto es el pozo o instalación del `ShellCatalogId` de la locación y suma todas las
+  empresas. Un cambio que afecte un indicador debe quedar cubierto por `IndicatorChangeInterceptor` (marca en
+  `indicator_messages` en la misma transacción); nunca llames al Shell de forma síncrona. Un indicador nuevo va en
+  `BrocalIndicators.All` con textos es/en/pt-BR y en la tabla de `docs/integracion-chronolith.md`.
 
 ## Frontend
 

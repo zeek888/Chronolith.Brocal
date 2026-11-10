@@ -4,6 +4,9 @@ WORKDIR /src
 
 # Restaurar primero (capa en caché mientras no cambien los proyectos ni las versiones centralizadas).
 COPY global.json Directory.Build.props Directory.Packages.props ./
+# Paquetes de licenciamiento de ChronoLith (fuente local "chronolith" de nuget.config).
+COPY nuget.config ./
+COPY nuget/ nuget/
 COPY src/ChronoLith.Brocal.Domain/ChronoLith.Brocal.Domain.csproj src/ChronoLith.Brocal.Domain/
 COPY src/ChronoLith.Brocal.Application/ChronoLith.Brocal.Application.csproj src/ChronoLith.Brocal.Application/
 COPY src/ChronoLith.Brocal.Infrastructure/ChronoLith.Brocal.Infrastructure.csproj src/ChronoLith.Brocal.Infrastructure/

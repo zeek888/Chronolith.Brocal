@@ -1,6 +1,6 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, ViewEncapsulation, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, ViewEncapsulation, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,8 +15,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { BROCAL_MODE, RUNTIME_CONFIG } from '../core/config';
-import { DateTimePipe } from '../core/format';
+import { DateTimePipe, date } from '../core/format';
 import { I18n, TPipe } from '../core/i18n';
+import { LicenseService } from '../core/license';
 import { MENU, MenuGroup, MenuItem } from '../core/menu';
 import { BrocalNav, baseOf } from '../core/nav';
 import { BROCAL_AUTH, InboxService } from '../core/notifications';
@@ -66,6 +67,7 @@ export class BrocalLayout implements OnInit, OnDestroy {
   protected readonly inbox = inject(InboxService);
   protected readonly outbox = inject(TicketOutbox);
   protected readonly i18n = inject(I18n);
+  protected readonly license = inject(LicenseService);
   protected readonly standalone = inject(BROCAL_MODE) === 'standalone';
   protected readonly auth = inject(BROCAL_AUTH, { optional: true });
   protected readonly chronolithUrl = inject(RUNTIME_CONFIG, { optional: true })?.chronolithUrl ?? null;
@@ -84,10 +86,31 @@ export class BrocalLayout implements OnInit, OnDestroy {
     session.permissions();
     const visible = (item: MenuItem) =>
       (item.platformAdmin ? session.isPlatformAdmin() : !!session.tenant()) &&
+      (!item.standaloneApi || this.license.enabled()) &&
       (!item.module || session.hasModule(item.module)) &&
       (!item.staffOnly || !session.isPortalUser()) &&
       (item.platformAdmin || session.can(...item.permissions));
     return MENU.map((group) => ({ ...group, items: group.items.filter(visible) })).filter((group) => group.items.length > 0);
+  });
+
+  /** Notice of the ChronoLith license (standalone API only): about to expire, grace, read-only or development. */
+  protected readonly licenseNotice = computed(() => {
+    const status = this.license.notice();
+    if (!status) {
+      return null;
+    }
+
+    const params = { date: date(status.expiresAt, 'long'), until: date(status.graceEndsAt, 'long'), n: status.daysRemaining };
+    switch (status.state) {
+      case 'expired':
+        return { tone: 'error', icon: 'lock', text: this.i18n.t('license.notice.expired', params) };
+      case 'grace':
+        return { tone: 'error', icon: 'error', text: this.i18n.t('license.notice.grace', params) };
+      case 'expiring':
+        return { tone: 'warning', icon: 'warning', text: this.i18n.t('license.notice.expiring', params) };
+      default:
+        return { tone: 'info', icon: 'info', text: this.i18n.t('license.notice.development') };
+    }
   });
 
   protected readonly logo = computed(() => fileUrl(this.theme.logoUrl()));
@@ -101,6 +124,15 @@ export class BrocalLayout implements OnInit, OnDestroy {
     const path = url.startsWith(base) ? url.slice(base.length).replace(/^\/+/, '').split('?')[0] : '';
     return this.menu().find((g) => g.items.some((i) => path === i.path || path.startsWith(`${i.path}/`)))?.key ?? null;
   });
+
+  constructor() {
+    // The license notice is read once the session tells the mode of the API (and again after loading a license).
+    effect(() => {
+      if (this.session.loaded() && this.license.enabled()) {
+        untracked(() => void this.license.refresh());
+      }
+    });
+  }
 
   ngOnInit(): void {
     this.nav.base.set(baseOf(this.route.snapshot));

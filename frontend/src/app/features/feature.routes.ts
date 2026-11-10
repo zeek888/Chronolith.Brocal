@@ -1,6 +1,6 @@
 import { Route, Routes } from '@angular/router';
 import { P } from '../core/permissions';
-import { platformAdminOnly, requires, staffOnly } from '../core/session';
+import { platformAdminOnly, requires, staffOnly, standaloneApiOnly } from '../core/session';
 import { CatalogConfig } from '../shared/crud/fields';
 import { ListConfig } from '../shared/crud/list-page';
 import { RecordConfig } from '../shared/crud/record-page';
@@ -163,6 +163,8 @@ export const FEATURE_ROUTES: Routes = [
   { ...list('plataforma/empresas', TENANT_LIST as ListConfig<never>, []), canActivate: [platformAdminOnly] },
   { path: 'plataforma/empresas/:id', title: 'brocal.nav.tenants', canActivate: [platformAdminOnly], loadComponent: () => import('./platform/platform-pages').then((m) => m.TenantDetailPage) },
   { path: 'plataforma/tareas', title: 'brocal.nav.scheduledJobs', canActivate: [platformAdminOnly], loadComponent: () => import('./platform/jobs-page').then((m) => m.ScheduledJobsPage) },
+  { path: 'plataforma/catalogos-chronolith', title: 'brocal.nav.sharedCatalogs', canActivate: [platformAdminOnly], loadComponent: () => import('./platform/shared-catalogs-page').then((m) => m.SharedCatalogsPage) },
+  { path: 'plataforma/licencia', title: 'brocal.nav.license', canActivate: [platformAdminOnly, standaloneApiOnly], loadComponent: () => import('./platform/license-page').then((m) => m.LicensePage) },
 
   { path: '**', redirectTo: 'inicio' },
 ];

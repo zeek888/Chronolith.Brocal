@@ -21,7 +21,7 @@ import { DataTable } from '../data-table';
 import { Dialogs } from '../dialogs';
 import { PageHeader } from '../ui';
 import { EntityDialog, EntityDialogData } from './entity-dialog';
-import { CatalogConfig } from './fields';
+import { CatalogConfig, RowAction } from './fields';
 
 type Row = Record<string, unknown> & { id: string; isActive?: boolean; name?: string; code?: string };
 
@@ -87,6 +87,11 @@ type Row = Record<string, unknown> & { id: string; isActive?: boolean; name?: st
               <button mat-menu-item type="button" (click)="toggleActive(row)">
                 <mat-icon>{{ row.isActive ? 'toggle_off' : 'toggle_on' }}</mat-icon>{{ (row.isActive ? 'common.deactivate' : 'common.activate') | t }}
               </button>
+              @for (action of config().rowActions ?? []; track action.key) {
+                @if (!action.show || action.show(row)) {
+                  <button mat-menu-item type="button" (click)="runAction(action, row)"><mat-icon>{{ action.icon }}</mat-icon>{{ action.label | t }}</button>
+                }
+              }
               <button mat-menu-item type="button" (click)="remove(row)"><mat-icon>delete</mat-icon>{{ 'common.delete' | t }}</button>
             </mat-menu>
           }
@@ -195,6 +200,15 @@ export class CatalogPage implements OnInit {
 
   protected toggleActive(row: Row): void {
     this.api.put(`${this.config().api}/${row.id}/active`, { isActive: !row.isActive }).subscribe(() => this.afterChange());
+  }
+
+  protected async runAction(action: RowAction, row: Row): Promise<void> {
+    try {
+      await action.run(row, { api: this.api, i18n: this.i18n, dialogs: this.dialogs });
+      this.afterChange();
+    } catch {
+      // Shown by the HTTP error handler.
+    }
   }
 
   protected async remove(row: Row): Promise<void> {

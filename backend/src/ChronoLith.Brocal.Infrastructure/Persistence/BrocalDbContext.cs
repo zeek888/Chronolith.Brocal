@@ -63,6 +63,21 @@ public sealed class BrocalDbContext(
 
     public DbSet<ScheduledJobRun> ScheduledJobRuns => Set<ScheduledJobRun>();
 
+    /// <summary>License of the installation (standalone mode); used only by <c>Licensing.LicenseStore</c>.</summary>
+    public DbSet<InstallationLicense> InstallationLicenses => Set<InstallationLicense>();
+
+    public DbSet<SharedCatalogItem> SharedCatalogItems => Set<SharedCatalogItem>();
+
+    public DbSet<CatalogPushMessage> CatalogPushMessages => Set<CatalogPushMessage>();
+
+    public DbSet<CatalogFeedState> CatalogFeedStates => Set<CatalogFeedState>();
+
+    /// <summary>Outbox of the indicators published to the Shell; used only by <c>Platform.IndicatorOutboxStore</c>.</summary>
+    public DbSet<IndicatorMessage> IndicatorMessages => Set<IndicatorMessage>();
+
+    /// <summary>Subjects published to (or retired from) the Shell; used only by <c>Platform.IndicatorOutboxStore</c>.</summary>
+    public DbSet<IndicatorSubject> IndicatorSubjects => Set<IndicatorSubject>();
+
     public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
 
     public DbSet<WorkflowInstance> WorkflowInstances => Set<WorkflowInstance>();

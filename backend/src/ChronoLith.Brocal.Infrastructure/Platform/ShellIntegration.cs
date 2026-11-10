@@ -142,43 +142,6 @@ internal sealed class ModuleRegistrationService(
     }
 }
 
-/// <summary>Shared catalogs of the Shell (wells, fields, companies) read with the user's token.</summary>
-internal sealed class ShellCatalogClient(HttpClient http, IHttpContextAccessor httpContext, IOptions<ShellOptions> shell, IMemoryCache cache) : IShellCatalogClient
-{
-    private static readonly HashSet<string> Catalogs = ["wells", "fields", "facilities", "companies", "assets", "basins", "rigs"];
-
-    public bool IsAvailable => !string.IsNullOrWhiteSpace(shell.Value.ApiUrl);
-
-    public async Task<IReadOnlyList<ShellLookupItem>> LookupAsync(string catalog, CancellationToken cancellationToken)
-    {
-        if (!IsAvailable || !Catalogs.Contains(catalog))
-        {
-            return [];
-        }
-
-        var header = httpContext.HttpContext?.Request.Headers.Authorization.ToString();
-        if (string.IsNullOrWhiteSpace(header) || !AuthenticationHeaderValue.TryParse(header, out var token))
-        {
-            return [];
-        }
-
-        return await cache.GetOrCreateAsync($"shell-lookup:{catalog}", async entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2);
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"api/catalogs/{catalog}/lookup?activeOnly=false");
-            request.Headers.Authorization = token;
-            using var response = await http.SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(5);
-                return (IReadOnlyList<ShellLookupItem>)[];
-            }
-
-            return await response.Content.ReadFromJsonAsync<List<ShellLookupItem>>(cancellationToken) ?? [];
-        }) ?? [];
-    }
-}
-
 /// <summary>
 /// Default theme and layout of ChronoLith (Administración → Apariencia) for standalone mode, read from the Shell API
 /// with the user's token. Null when the Shell is not reachable (the frontend then uses the ChronoLith palette).

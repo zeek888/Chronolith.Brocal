@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -73,9 +74,17 @@ public sealed class BrocalApiFactory : WebApplicationFactory<Program>, IAsyncLif
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.ConfigureTestServices(services => services
-            .AddAuthentication(TestAuthHandler.SchemeName)
-            .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, null));
+
+        // Standalone mode needs a ChronoLith license: one signed with the key of the tests (see TestLicenses).
+        // Read when the license starts (after Build), so it can go in the app configuration instead of the environment.
+        builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(new Dictionary<string, string?> { ["License:Key"] = TestLicenses.Valid() }));
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton(TestLicenses.Verifier);
+            services
+                .AddAuthentication(TestAuthHandler.SchemeName)
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, null);
+        });
     }
 
     /// <summary>Client signed in as <paramref name="user"/> working on <paramref name="tenant"/> (binds the membership first).</summary>

@@ -1,13 +1,16 @@
 using ChronoLith.Brocal.Application.Abstractions;
+using ChronoLith.Brocal.Application.Features.Platform;
 using ChronoLith.Brocal.Domain.Platform;
 
 namespace ChronoLith.Brocal.Infrastructure.Tenancy;
 
 /// <summary>
 /// Scoped state of the current company. The resolution middleware sets it once per request; background jobs and
-/// platform operations push a temporary scope with <see cref="BeginScope"/>.
+/// platform operations push a temporary scope with <see cref="BeginScope"/>. Every snapshot it receives keeps only the
+/// contracted modules the license of the installation grants, so module checks, menus and permissions see the
+/// effective modules.
 /// </summary>
-internal sealed class TenantContext : ITenantContext
+internal sealed class TenantContext(ILicensedModules licensedModules) : ITenantContext
 {
     private readonly Stack<State> _scopes = new();
     private State? _state;
@@ -37,12 +40,16 @@ internal sealed class TenantContext : ITenantContext
     public bool IsModuleEnabled(string module) => Current?.Tenant.IsModuleEnabled(module) ?? false;
 
     /// <summary>Sets the company of the request (once, by the resolution middleware).</summary>
-    public void Set(TenantSnapshot tenant, MembershipSnapshot? membership, bool isPlatformAdmin, IReadOnlySet<string> permissions) =>
-        _state = new State(tenant, membership, isPlatformAdmin, permissions);
+    public void Set(TenantSnapshot tenant, MembershipSnapshot? membership, bool isPlatformAdmin, IReadOnlySet<string> permissions)
+    {
+        var effective = licensedModules.Apply(tenant);
+        _state = new State(effective, membership, isPlatformAdmin, permissions.Where(p => effective.IsModuleEnabled(BrocalModules.ModuleOf(p))).ToHashSet(StringComparer.Ordinal));
+    }
 
     public IDisposable BeginScope(TenantSnapshot tenant)
     {
-        _scopes.Push(new State(tenant, null, true, AllPermissionsOf(tenant)));
+        var effective = licensedModules.Apply(tenant);
+        _scopes.Push(new State(effective, null, true, AllPermissionsOf(effective)));
         return new Scope(this);
     }
 

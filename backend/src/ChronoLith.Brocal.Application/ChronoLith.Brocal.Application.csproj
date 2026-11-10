@@ -12,11 +12,13 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="Scrutor" />
+    <PackageReference Include="ChronoLith.Licensing" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="ChronoLith.Brocal.Infrastructure" />
     <InternalsVisibleTo Include="ChronoLith.Brocal.IntegrationTests" />
+    <InternalsVisibleTo Include="ChronoLith.Brocal.Application.UnitTests" />
   </ItemGroup>
 
 </Project>

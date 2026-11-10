@@ -44,6 +44,15 @@ public interface IApplicationDbContext
 
     DbSet<ScheduledJobRun> ScheduledJobRuns { get; }
 
+    /// <summary>Replica of the shared catalogs of the Shell (installation-wide, no tenant filter).</summary>
+    DbSet<SharedCatalogItem> SharedCatalogItems { get; }
+
+    /// <summary>Writes to the master catalog waiting for the service account, and the ones the master rejected.</summary>
+    DbSet<CatalogPushMessage> CatalogPushMessages { get; }
+
+    /// <summary>Single row with the cursor of the change feed (see <c>CatalogFeedState.SingletonId</c>).</summary>
+    DbSet<CatalogFeedState> CatalogFeedStates { get; }
+
     // ---- Workflows and business rules ----------------------------------------------------------
     /// <summary>Company and global definitions (no tenant filter: filter by <c>TenantId == null || TenantId == current</c>).</summary>
     DbSet<WorkflowDefinition> WorkflowDefinitions { get; }

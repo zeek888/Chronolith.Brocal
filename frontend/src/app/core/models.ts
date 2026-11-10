@@ -41,12 +41,29 @@ export interface GeoPoint {
 }
 
 export interface ProblemDetails {
+  type?: string;
   title?: string;
   detail?: string;
   status?: number;
   code?: string;
   errors?: Record<string, string[]>;
+  /** Limit of the license that was reached (`users`, `companies`) and its value. */
+  key?: string;
+  limit?: number;
+  /** Why a license token was rejected (`malformed`, `wrongInstance`…). */
+  problem?: string;
 }
+
+/** `type` of the ProblemDetails of the ChronoLith license (LicenseProblemTypes of the API, standalone mode). */
+export const LICENSE_PROBLEMS = {
+  expired: 'https://chronolith.com.mx/problemas/licencia-vencida',
+  limitReached: 'https://chronolith.com.mx/problemas/licencia-limite',
+  productNotLicensed: 'https://chronolith.com.mx/problemas/licencia-producto',
+  invalid: 'https://chronolith.com.mx/problemas/licencia-invalida',
+} as const;
+
+/** Values of `problem` in the 400 answer of `PUT /api/license`. */
+export const LICENSE_TOKEN_PROBLEMS = ['malformed', 'unknownKey', 'invalidSignature', 'productNotLicensed', 'wrongInstance', 'developmentNotAllowed', 'olderThanActive'] as const;
 
 // ---- Enums ---------------------------------------------------------------------------------------
 
@@ -198,6 +215,8 @@ export interface MyContext {
   tenant: CurrentTenant | null;
   mode: string;
   version: string;
+  /** Connected to a Shell of ChronoLith: the forms offer its wells, facilities, fields and companies. */
+  sharedCatalogs: boolean;
 }
 
 export interface ChronoLithTheme {
@@ -229,6 +248,8 @@ export interface ModuleInfo {
   isCore: boolean;
   dependsOn: string[];
   permissions: PermissionInfo[];
+  /** The license of the installation grants it (always true as a module of ChronoLith). */
+  licensed: boolean;
 }
 
 export interface TenantQuotas {
@@ -1914,4 +1935,69 @@ export interface ScheduledJobs {
   intervalMinutes: number;
   nextRunAt: IsoDateTime | null;
   runs: ScheduledJobRun[];
+}
+
+// ---- Shared catalogs of ChronoLith (replica fed by the change feed) ----
+
+export type CatalogPushStatus = 'pending' | 'sent' | 'rejected' | 'failed' | 'discarded';
+
+export type CatalogPushOutcome = 'skipped' | 'sent' | 'queued' | 'rejected';
+
+export interface CatalogPushResult {
+  outcome: CatalogPushOutcome;
+  shellId: Guid | null;
+  detail: string | null;
+}
+
+export interface SharedCatalogCount {
+  catalog: string;
+  total: number;
+  active: number;
+}
+
+export interface CatalogPush {
+  id: Guid;
+  tenantSlug: string;
+  tenantName: string;
+  entityType: 'Site' | 'Customer';
+  entityId: Guid;
+  catalog: string;
+  method: 'POST' | 'PUT';
+  shellId: Guid | null;
+  summary: string;
+  status: CatalogPushStatus;
+  attempts: number;
+  createdAt: IsoDateTime;
+  nextAttemptAt: IsoDateTime;
+  sentAt: IsoDateTime | null;
+  lastError: string | null;
+}
+
+export interface SharedCatalogStatus {
+  available: boolean;
+  backgroundEnabled: boolean;
+  intervalMinutes: number;
+  cursor: number;
+  latest: number;
+  lastPolledAt: IsoDateTime | null;
+  lastReportedAt: IsoDateTime | null;
+  lastFullSyncAt: IsoDateTime | null;
+  lastRunApplied: number;
+  lastRunErrors: number;
+  lastError: string | null;
+  lastErrorAt: IsoDateTime | null;
+  counts: SharedCatalogCount[];
+  pendingPushes: number;
+  rejectedPushes: number;
+  failedPushes: number;
+  pushes: CatalogPush[];
+}
+
+export interface CatalogSyncRunSummary {
+  pages: number;
+  applied: number;
+  errors: number;
+  pushed: number;
+  fullSync: boolean;
+  cursor: number;
 }

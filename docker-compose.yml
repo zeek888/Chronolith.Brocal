@@ -49,6 +49,8 @@ services:
       Keycloak__ClientId: chronolith-brocal-api
       Keycloak__ClientSecret: ${KC_BROCAL_API_CLIENT_SECRET:-chronolith-brocal-api-dev-secret}
       Shell__ApiUrl: ${SHELL_API_INTERNAL_URL:-http://shell-api:8080}
+      # Réplica de los catálogos del Shell: la cuenta de servicio del módulo consulta su feed de cambios cada tantos minutos.
+      Jobs__CatalogFeedMinutes: ${CATALOG_FEED_MINUTES:-2}
       # Crear en Keycloak la cuenta de quien se invita (requiere ensure-keycloak-clients -ProvisionUsers).
       Identity__ProvisionUsers: ${BROCAL_PROVISION_USERS:-false}
       ModuleRegistration__Enabled: "true"

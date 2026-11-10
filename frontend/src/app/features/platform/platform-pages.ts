@@ -61,7 +61,8 @@ export const TENANT_LIST: ListConfig<TenantSummary> = {
       label: 'tenants.new',
       primary: true,
       run: async (ctx) => {
-        const modules = await firstValueFrom(ctx.api.get<ModuleInfo[]>('platform/modules', undefined, { tenant: false }));
+        // Only the modules the license of the installation grants can be contracted.
+        const modules = (await firstValueFrom(ctx.api.get<ModuleInfo[]>('platform/modules', undefined, { tenant: false }))).filter((m) => m.licensed);
         const created = (await ctx.form(
           {
             title: ctx.i18n.t('tenants.new'),
@@ -143,14 +144,25 @@ export const TENANT_LIST: ListConfig<TenantSummary> = {
           <mat-tab [label]="'tenants.tabs.modules' | t">
             <section class="br-card br-tabs-body">
               <p class="cl-muted">{{ 'tenants.modulesHint' | t }}</p>
+              @if (restrictedByLicense()) {
+                <p class="cl-muted">{{ 'tenants.modulesLicenseHint' | t }}</p>
+              }
               @for (category of categories(); track category.key) {
                 <h3 class="br-form-section">{{ 'nav.groups.' + category.key | t }}</h3>
                 <div class="br-module-list">
                   @for (module of category.modules; track module.code) {
-                    <mat-checkbox [checked]="selectedModules().has(module.code)" [disabled]="module.isCore" (change)="toggleModule(module, $event.checked)" [matTooltip]="module.description">
+                    <mat-checkbox
+                      [checked]="selectedModules().has(module.code)"
+                      [disabled]="module.isCore || (!module.licensed && !selectedModules().has(module.code))"
+                      (change)="toggleModule(module, $event.checked)"
+                      [matTooltip]="module.description"
+                    >
                       <mat-icon class="br-inline-icon">{{ module.icon }}</mat-icon>{{ module.number }}. {{ module.name }}
                       @if (module.dependsOn.length > 0) {
                         <small class="cl-muted">({{ 'tenants.requires' | t }} {{ module.dependsOn.join(', ') }})</small>
+                      }
+                      @if (!module.licensed) {
+                        <span class="cl-chip cl-chip--warning">{{ 'tenants.notLicensed' | t }}</span>
                       }
                     </mat-checkbox>
                   }
@@ -225,6 +237,7 @@ export class TenantDetailPage {
     const modules = this.modules.value() ?? [];
     return ['operations', 'assets', 'compliance', 'fiscal', 'management', 'platform'].map((key) => ({ key, modules: modules.filter((m) => m.category === key) }));
   });
+  protected readonly restrictedByLicense = computed(() => (this.modules.value() ?? []).some((m) => !m.licensed));
 
   protected readonly statusActions = computed<TenantStatusAction[]>(() => {
     const status = this.tenant.value()?.status;

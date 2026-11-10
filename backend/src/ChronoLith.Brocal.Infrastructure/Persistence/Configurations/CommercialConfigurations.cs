@@ -49,6 +49,8 @@ internal sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(s => s.Latitude).HasPrecision(9, 6);
         builder.Property(s => s.Longitude).HasPrecision(9, 6);
         builder.HasIndex(s => new { s.TenantId, s.CustomerId });
+        // Indicators for the Shell: sites of every company linked to a well or facility.
+        builder.HasIndex(s => s.ShellCatalogId).HasFilter("shell_catalog_id IS NOT NULL");
     }
 }
 
@@ -173,6 +175,9 @@ internal sealed class ServiceTicketConfiguration : IEntityTypeConfiguration<Serv
         builder.HasIndex(t => new { t.TenantId, t.CustomerId });
         builder.HasIndex(t => t.WorkOrderId);
         builder.HasIndex(t => t.InvoiceId);
+        // Indicators for the Shell (every company): tickets of a site per day and its drafts.
+        builder.HasIndex(t => new { t.SiteId, t.ServiceDate });
+        builder.HasIndex(t => t.SiteId).HasDatabaseName("ix_tickets_site_id_draft").HasFilter("status = 'Draft'");
     }
 }
 
@@ -220,5 +225,7 @@ internal sealed class WorkOrderConfiguration : IEntityTypeConfiguration<WorkOrde
         builder.HasIndex(w => new { w.TenantId, w.FolioNumber }).IsUnique();
         builder.HasIndex(w => new { w.TenantId, w.ScheduledStart });
         builder.HasIndex(w => new { w.TenantId, w.Status });
+        // Indicators for the Shell (every company): open orders of a site.
+        builder.HasIndex(w => new { w.SiteId, w.Status });
     }
 }

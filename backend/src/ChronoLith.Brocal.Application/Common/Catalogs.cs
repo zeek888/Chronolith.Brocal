@@ -54,6 +54,9 @@ public interface ICatalogSpec<TEntity, TData, TDto>
 
     /// <summary>Called after create/update before saving (e.g. to bind related data).</summary>
     Task AfterSaveAsync(TEntity entity, bool created, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>Called once the record is saved (e.g. to push it to the master catalog of ChronoLith).</summary>
+    Task AfterCommitAsync(TEntity entity, bool created, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 /// <summary>
@@ -153,6 +156,7 @@ public sealed class CatalogService<TEntity, TData, TDto>(
         db.Set<TEntity>().Add(entity.Value);
         await spec.AfterSaveAsync(entity.Value, created: true, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+        await spec.AfterCommitAsync(entity.Value, created: true, cancellationToken);
 
         return entity.Value.Id;
     }
@@ -191,6 +195,7 @@ public sealed class CatalogService<TEntity, TData, TDto>(
 
         await spec.AfterSaveAsync(entity, created: false, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+        await spec.AfterCommitAsync(entity, created: false, cancellationToken);
         return Result.Success();
     }
 

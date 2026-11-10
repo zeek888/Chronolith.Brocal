@@ -22,6 +22,9 @@ public sealed class JobsOptions
 
     /// <summary>How often the reviews run (they are idempotent thanks to deduplication keys).</summary>
     public int ScanIntervalMinutes { get; init; } = 60;
+
+    /// <summary>How often the change feed of the shared catalogs of ChronoLith is polled (1 to 5 minutes per the module contract).</summary>
+    public int CatalogFeedMinutes { get; init; } = 2;
 }
 
 /// <summary>Runs the scheduled reviews every <see cref="JobsOptions.ScanIntervalMinutes"/>.</summary>

@@ -15,6 +15,8 @@ export interface MenuItem {
   staffOnly?: boolean;
   /** Shows the number of approval requests waiting for the user. */
   approvalsBadge?: boolean;
+  /** Only when the API runs standalone (e.g. the ChronoLith license, validated by the Shell in module mode). */
+  standaloneApi?: boolean;
 }
 
 export interface MenuGroup {
@@ -120,6 +122,8 @@ export const MENU: MenuGroup[] = [
       { key: 'audit', icon: 'history', path: 'configuracion/bitacora', permissions: [P.auditRead] },
       { key: 'tenants', icon: 'domain_add', path: 'plataforma/empresas', permissions: [], platformAdmin: true },
       { key: 'scheduledJobs', icon: 'schedule', path: 'plataforma/tareas', permissions: [], platformAdmin: true },
+      { key: 'sharedCatalogs', icon: 'sync_alt', path: 'plataforma/catalogos-chronolith', permissions: [], platformAdmin: true },
+      { key: 'license', icon: 'verified_user', path: 'plataforma/licencia', permissions: [], platformAdmin: true, standaloneApi: true },
     ],
   },
 ];
